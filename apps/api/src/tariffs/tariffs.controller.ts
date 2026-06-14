@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { TariffsService } from './tariffs.service';
 import { Roles, CurrentUser, AuthUser } from '../common/decorators';
@@ -48,5 +48,14 @@ export class TariffsController {
     const tariff = await this.tariffs.update(id, dto);
     await this.audit.record({ adminId: admin.id, action: 'tariff.update', entityType: 'Tariff', entityId: id });
     return tariff;
+  }
+
+  @Roles(UserRole.ADMIN)
+  @Delete('admin/tariffs/:id')
+  @ApiOperation({ summary: 'Archive (soft-delete) a tariff' })
+  async remove(@CurrentUser() admin: AuthUser, @Param('id') id: string) {
+    const res = await this.tariffs.archive(id);
+    await this.audit.record({ adminId: admin.id, action: 'tariff.archive', entityType: 'Tariff', entityId: id });
+    return res;
   }
 }

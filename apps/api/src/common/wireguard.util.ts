@@ -33,6 +33,16 @@ export function generatePresharedKey(): string {
 }
 
 /**
+ * Short tunnel name for the .conf filename. The WireGuard desktop client derives
+ * the tunnel name from the filename and only accepts `^[A-Za-z0-9_=+.-]{1,15}$`,
+ * so a full peer CUID is too long. Produces e.g. `Axima-NL-9f3a` (13 chars).
+ */
+export function buildConfigName(countryCode: string, peerId: string): string {
+  const cc = (countryCode || 'XX').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 2);
+  return `Axima-${cc}-${peerId.slice(-4)}`;
+}
+
+/**
  * Render a client .conf. AllowedIPs drives the split tunnel — only the supplied
  * CIDRs are routed through the server.
  */

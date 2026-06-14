@@ -26,8 +26,9 @@ export const createTariffSchema = z.object({
   priceCents: z.number().int().min(0),
   currency: z.string().length(3).default('RUB'),
   durationDays: z.number().int().min(1).max(3650),
-  deviceLimit: z.number().int().min(1).max(50),
+  deviceLimit: z.number().int().min(1).max(10000),
   isActive: z.boolean().default(true),
+  isPublic: z.boolean().default(true),
   countryIds: z.array(z.string()).default([]),
 });
 export type CreateTariffInput = z.infer<typeof createTariffSchema>;

@@ -11,7 +11,7 @@ import { TypedConfigService } from '../config/config.module';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { RoutesService } from '../routes/routes.service';
 import { AgentGatewayService } from '../agent-gateway/agent-gateway.service';
-import { generateKeyPair, generatePresharedKey, renderClientConfig } from '../common/wireguard.util';
+import { generateKeyPair, generatePresharedKey, renderClientConfig, buildConfigName } from '../common/wireguard.util';
 import { nextFreeIp } from '../common/ip-alloc.util';
 import { PeerStatus, ServerStatus } from '@aximavpn/shared';
 
@@ -26,12 +26,14 @@ export class PeersService {
     private readonly agent: AgentGatewayService,
   ) {}
 
-  listForUser(userId: string) {
-    return this.prisma.wireguardPeer.findMany({
+  async listForUser(userId: string) {
+    const peers = await this.prisma.wireguardPeer.findMany({
       where: { userId, status: PeerStatus.ACTIVE },
       orderBy: { createdAt: 'desc' },
       include: { server: { select: { name: true, country: { select: { code: true, flagEmoji: true } } } } },
     });
+    // Short WireGuard-PC-compatible tunnel name for the downloadable .conf.
+    return peers.map((p) => ({ ...p, configName: buildConfigName(p.server.country.code, p.id) }));
   }
 
   /**
@@ -122,6 +124,18 @@ export class PeersService {
       endpoint: `${server.ip}:${server.wgEndpointPort}`,
       allowedIps: cidrs,
     });
+  }
+
+  /** Config plus a short WireGuard-compatible filename for the download endpoint. */
+  async getConfigFile(userId: string, peerId: string): Promise<{ filename: string; content: string }> {
+    const content = await this.getConfig(userId, peerId);
+    const peer = await this.loadOwned(userId, peerId);
+    const server = await this.prisma.vpnServer.findUnique({
+      where: { id: peer.serverId },
+      select: { country: { select: { code: true } } },
+    });
+    const filename = `${buildConfigName(server?.country?.code ?? 'XX', peer.id)}.conf`;
+    return { filename, content };
   }
 
   async getQrDataUrl(userId: string, peerId: string): Promise<string> {

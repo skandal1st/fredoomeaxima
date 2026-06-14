@@ -19,7 +19,11 @@ export class PaymentsService {
   /** Start a checkout for a tariff. Returns a confirmation URL (or settles immediately for mock). */
   async checkout(userId: string, tariffId: string) {
     const tariff = await this.prisma.tariff.findUnique({ where: { id: tariffId } });
-    if (!tariff || !tariff.isActive) throw new NotFoundException('Tariff not available');
+    // Only active, public, non-archived tariffs are self-purchasable; non-public
+    // ones are admin-assigned only.
+    if (!tariff || !tariff.isActive || !tariff.isPublic || tariff.isArchived) {
+      throw new NotFoundException('Tariff not available');
+    }
 
     const payment = await this.prisma.payment.create({
       data: {

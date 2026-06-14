@@ -110,6 +110,8 @@ model Tariff {
   durationDays Int
   deviceLimit  Int      @default(1)
   isActive     Boolean  @default(true)
+  isPublic     Boolean  @default(true) // shown in the public self-purchase catalogue
+  isArchived   Boolean  @default(false) // soft-deleted: hidden everywhere, refs preserved
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

@@ -32,9 +32,9 @@ export class PeersController {
   @Header('Content-Type', 'text/plain; charset=utf-8')
   @ApiOperation({ summary: 'Download .conf' })
   async config(@CurrentUser() user: AuthUser, @Param('id') id: string, @Res() res: Response) {
-    const conf = await this.peers.getConfig(user.id, id);
-    res.setHeader('Content-Disposition', `attachment; filename="aximavpn-${id}.conf"`);
-    res.send(conf);
+    const { filename, content } = await this.peers.getConfigFile(user.id, id);
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(content);
   }
 
   @Get('peers/:id/qr')

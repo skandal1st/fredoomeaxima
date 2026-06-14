@@ -18,10 +18,11 @@ interface Tariff {
   durationDays: number;
   deviceLimit: number;
   isActive: boolean;
+  isPublic: boolean;
   allowedCountries: { id: string; code: string }[];
 }
 
-const EMPTY = { name: '', priceCents: 19900, currency: 'RUB', durationDays: 30, deviceLimit: 3, isActive: true };
+const EMPTY = { name: '', priceCents: 19900, currency: 'RUB', durationDays: 30, deviceLimit: 3, isActive: true, isPublic: true };
 
 export default function AdminTariffsPage() {
   const [tariffs, setTariffs] = useState<Tariff[]>([]);
@@ -67,6 +68,17 @@ export default function AdminTariffsPage() {
     await load();
   };
 
+  const togglePublic = async (t: Tariff) => {
+    await api(`/admin/tariffs/${t.id}`, { method: 'PATCH', body: JSON.stringify({ isPublic: !t.isPublic }) });
+    await load();
+  };
+
+  const remove = async (t: Tariff) => {
+    if (!confirm(`Удалить тариф «${t.name}»? Он скроется из списков; история подписок сохранится.`)) return;
+    await api(`/admin/tariffs/${t.id}`, { method: 'DELETE' });
+    await load();
+  };
+
   if (loading) return <Spinner />;
 
   return (
@@ -94,7 +106,19 @@ export default function AdminTariffsPage() {
             ))}
           </select>
           <div className="md:col-span-3">
-            <p className="text-xs text-faint">Оставьте список стран пустым, чтобы разрешить все.</p>
+            <label className="flex items-center gap-2.5 text-sm text-dim">
+              <input
+                type="checkbox"
+                checked={form.isPublic}
+                onChange={(e) => setForm({ ...form, isPublic: e.target.checked })}
+                style={{ accentColor: 'var(--accent)' }}
+              />
+              Публичный — показывать в каталоге и разрешить самостоятельную покупку
+            </label>
+            <p className="mt-2 text-xs text-faint">
+              Снимите галочку для индивидуального тарифа: он скрыт из каталога и назначается только вручную.
+              Оставьте список стран пустым, чтобы разрешить все.
+            </p>
             <ErrorText>{error}</ErrorText>
             <button className="btn-primary mt-3">Создать</button>
           </div>
@@ -110,6 +134,8 @@ export default function AdminTariffsPage() {
             <Th>Устройства</Th>
             <Th>Страны</Th>
             <Th>Активен</Th>
+            <Th>Публичный</Th>
+            <Th>Действия</Th>
           </>
         }
       >
@@ -127,6 +153,22 @@ export default function AdminTariffsPage() {
             <Td>
               <button onClick={() => toggleActive(t)}>
                 <Badge status={t.isActive ? 'ACTIVE' : 'DISABLED'} />
+              </button>
+            </Td>
+            <Td>
+              <label className="flex cursor-pointer items-center gap-2 text-xs text-dim">
+                <input
+                  type="checkbox"
+                  checked={t.isPublic}
+                  onChange={() => togglePublic(t)}
+                  style={{ accentColor: 'var(--accent)' }}
+                />
+                {t.isPublic ? 'Публичный' : 'Скрытый'}
+              </label>
+            </Td>
+            <Td>
+              <button className="text-xs hover:underline" style={{ color: '#ff8a8a' }} onClick={() => remove(t)}>
+                Удалить
               </button>
             </Td>
           </Tr>

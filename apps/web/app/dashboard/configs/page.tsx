@@ -22,6 +22,7 @@ interface Peer {
   assignedIp: string;
   status: string;
   needsUpdate: boolean;
+  configName: string;
   server: { name: string; country: { code: string; flagEmoji?: string } };
 }
 
@@ -84,14 +85,14 @@ export default function ConfigsPage() {
     setQr({ id, dataUrl });
   };
 
-  const downloadConf = (id: string) => {
-    fetch(`${apiUrl}/peers/${id}/config`, { headers: { Authorization: `Bearer ${tokenStore.access}` } })
+  const downloadConf = (peer: Peer) => {
+    fetch(`${apiUrl}/peers/${peer.id}/config`, { headers: { Authorization: `Bearer ${tokenStore.access}` } })
       .then((r) => r.blob())
       .then((blob) => {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `aximavpn-${id}.conf`;
+        a.download = `${peer.configName}.conf`;
         a.click();
         URL.revokeObjectURL(url);
       });
@@ -175,7 +176,7 @@ export default function ConfigsPage() {
               <button className="btn-ghost" onClick={() => showQr(peer.id)}>
                 QR-код
               </button>
-              <button className="btn-ghost" onClick={() => downloadConf(peer.id)}>
+              <button className="btn-ghost" onClick={() => downloadConf(peer)}>
                 Скачать .conf
               </button>
               <button className="btn-ghost" onClick={() => recreate(peer.id)}>
