@@ -36,6 +36,8 @@ ENV AGENT_BUNDLE_PATH=/repo/apps/agent/dist/index.js
 COPY --from=build /repo/node_modules /repo/node_modules
 COPY --from=build /repo/packages/shared/dist /repo/packages/shared/dist
 COPY --from=build /repo/packages/shared/package.json /repo/packages/shared/package.json
+# shared's own deps (zod) are symlinked here into the root .pnpm store (already copied).
+COPY --from=build /repo/packages/shared/node_modules /repo/packages/shared/node_modules
 COPY --from=build /repo/apps/api/dist /repo/apps/api/dist
 COPY --from=build /repo/apps/api/node_modules /repo/apps/api/node_modules
 COPY --from=build /repo/apps/api/package.json /repo/apps/api/package.json

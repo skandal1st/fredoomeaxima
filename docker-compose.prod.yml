@@ -1,14 +1,17 @@
 # Production overrides. Usage:
 #   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 #
-# Single domain (PANEL_DOMAIN): web at https://<domain>, API at https://<domain>/api
-# (Traefik strips the /api prefix). TLS via Let's Encrypt (ACME_EMAIL).
+# Single domain: web at https://<domain>, API at https://<domain>/api.
+# Traefik uses the FILE provider (infra/traefik/dynamic.yml) instead of the Docker
+# provider — the Docker provider pins API 1.24 which newer daemons reject. Routing
+# targets containers by their compose DNS names (web, api) over the shared network.
 #
-# Requires in .env: PANEL_DOMAIN, ACME_EMAIL, and the prod URLs
+# Requires in .env: ACME_EMAIL and the prod URLs
 #   PANEL_PUBLIC_URL=https://<domain>/api
 #   WEB_PUBLIC_URL=https://<domain>
 #   NEXT_PUBLIC_API_URL=https://<domain>/api
 #   CORS_ORIGINS=https://<domain>
+# The domain itself is set in infra/traefik/dynamic.yml.
 
 services:
   postgres:
@@ -21,42 +24,20 @@ services:
     ports: []
     environment:
       NODE_ENV: production
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.api.rule=Host(`${PANEL_DOMAIN}`) && PathPrefix(`/api`)"
-      - "traefik.http.routers.api.entrypoints=websecure"
-      - "traefik.http.routers.api.tls.certresolver=le"
-      - "traefik.http.routers.api.priority=100"
-      - "traefik.http.routers.api.middlewares=api-strip"
-      - "traefik.http.middlewares.api-strip.stripprefix.prefixes=/api"
-      - "traefik.http.services.api.loadbalancer.server.port=4000"
 
   web:
     ports: []
     environment:
       NODE_ENV: production
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.web.rule=Host(`${PANEL_DOMAIN}`)"
-      - "traefik.http.routers.web.entrypoints=websecure"
-      - "traefik.http.routers.web.tls.certresolver=le"
-      - "traefik.http.routers.web.priority=1"
-      - "traefik.http.services.web.loadbalancer.server.port=3000"
 
   traefik:
-    # Pin the Docker API version Traefik uses. New Docker daemons reject Traefik's
-    # default-negotiated 1.24 ("client version is too old"), which leaves Traefik
-    # with no routers → 404 everywhere and no ACME. Match this to your daemon's
-    # Server APIVersion (`docker version`); 1.40 is the guaranteed-safe minimum.
-    environment:
-      - DOCKER_API_VERSION=${DOCKER_API_VERSION:-1.44}
     command:
-      - "--providers.docker=true"
-      - "--providers.docker.exposedbydefault=false"
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
       - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
       - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      - "--providers.file.directory=/etc/traefik/dynamic"
+      - "--providers.file.watch=true"
       - "--certificatesresolvers.le.acme.tlschallenge=true"
       - "--certificatesresolvers.le.acme.email=${ACME_EMAIL:-admin@example.com}"
       - "--certificatesresolvers.le.acme.storage=/letsencrypt/acme.json"
@@ -64,8 +45,8 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
       - letsencrypt:/letsencrypt
+      - ./infra/traefik:/etc/traefik/dynamic:ro
 
 volumes:
   letsencrypt:

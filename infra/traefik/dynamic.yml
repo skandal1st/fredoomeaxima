@@ -1,0 +1,45 @@
+# Traefik dynamic config (file provider) — avoids the Docker provider entirely,
+# which on this host pins Docker API 1.24 and gets rejected by the daemon.
+#
+# Routes the single domain: web at /, API at /api (prefix stripped). TLS via the
+# `le` (Let's Encrypt) resolver defined in the static command.
+#
+# NOTE: the domain is hard-coded here (file provider has no env substitution).
+# Change it if you deploy under a different domain.
+http:
+  routers:
+    web:
+      rule: "Host(`freedome.aximatech.ru`)"
+      entryPoints:
+        - websecure
+      service: web
+      priority: 1
+      tls:
+        certResolver: le
+
+    api:
+      rule: "Host(`freedome.aximatech.ru`) && PathPrefix(`/api`)"
+      entryPoints:
+        - websecure
+      service: api
+      priority: 100
+      middlewares:
+        - api-strip
+      tls:
+        certResolver: le
+
+  middlewares:
+    api-strip:
+      stripPrefix:
+        prefixes:
+          - /api
+
+  services:
+    web:
+      loadBalancer:
+        servers:
+          - url: "http://web:3000"
+    api:
+      loadBalancer:
+        servers:
+          - url: "http://api:4000"
