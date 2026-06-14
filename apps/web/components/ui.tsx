@@ -45,8 +45,8 @@ export function Td({ children }: { children: ReactNode }) {
 
 export function Table({ head, children }: { head: ReactNode; children: ReactNode }) {
   return (
-    <div className="reveal overflow-hidden rounded-xl border" style={{ background: 'var(--bg-elev)' }}>
-      <table className="min-w-full">
+    <div className="reveal overflow-x-auto rounded-xl border" style={{ background: 'var(--bg-elev)' }}>
+      <table className="min-w-full whitespace-nowrap">
         <thead style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid var(--border)' }}>
           <tr>{head}</tr>
         </thead>
