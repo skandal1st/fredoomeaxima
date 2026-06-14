@@ -103,7 +103,7 @@ services:
       - "3000:3000"
 
   traefik:
-    image: traefik:v3.1
+    image: traefik:v3.3
     restart: unless-stopped
     command:
       - "--providers.docker=true"
