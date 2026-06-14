@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../../lib/api';
 import { money } from '../../../lib/format';
-import { Badge, PageHeader, Spinner, Table, Th, Td, ErrorText } from '../../../components/ui';
+import { Badge, PageHeader, Spinner, Table, Th, Td, Tr, ErrorText } from '../../../components/ui';
 
 interface Country {
   id: string;
@@ -71,16 +71,16 @@ export default function AdminTariffsPage() {
 
   return (
     <div>
-      <PageHeader title="Tariffs" subtitle="Plans available to users" />
+      <PageHeader title="Тарифы" subtitle="Планы, доступные пользователям" />
 
-      <div className="mb-6 card">
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Create tariff</h2>
+      <div className="card reveal mb-6">
+        <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-faint">Создать тариф</h2>
         <form onSubmit={submit} className="grid gap-3 md:grid-cols-3">
-          <input className="input" placeholder="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
-          <input className="input" type="number" placeholder="Price (cents)" value={form.priceCents} onChange={(e) => setForm({ ...form, priceCents: Number(e.target.value) })} />
-          <input className="input" placeholder="Currency" value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })} />
-          <input className="input" type="number" placeholder="Duration (days)" value={form.durationDays} onChange={(e) => setForm({ ...form, durationDays: Number(e.target.value) })} />
-          <input className="input" type="number" placeholder="Device limit" value={form.deviceLimit} onChange={(e) => setForm({ ...form, deviceLimit: Number(e.target.value) })} />
+          <input className="input" placeholder="Название" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+          <input className="input" type="number" placeholder="Цена (в центах/копейках)" value={form.priceCents} onChange={(e) => setForm({ ...form, priceCents: Number(e.target.value) })} />
+          <input className="input" placeholder="Валюта (напр. RUB)" value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })} />
+          <input className="input" type="number" placeholder="Срок (дней)" value={form.durationDays} onChange={(e) => setForm({ ...form, durationDays: Number(e.target.value) })} />
+          <input className="input" type="number" placeholder="Лимит устройств" value={form.deviceLimit} onChange={(e) => setForm({ ...form, deviceLimit: Number(e.target.value) })} />
           <select
             multiple
             className="input h-24"
@@ -94,9 +94,9 @@ export default function AdminTariffsPage() {
             ))}
           </select>
           <div className="md:col-span-3">
-            <p className="text-xs text-slate-400">Leave countries empty to allow all.</p>
+            <p className="text-xs text-faint">Оставьте список стран пустым, чтобы разрешить все.</p>
             <ErrorText>{error}</ErrorText>
-            <button className="btn-primary mt-2">Create</button>
+            <button className="btn-primary mt-3">Создать</button>
           </div>
         </form>
       </div>
@@ -104,28 +104,32 @@ export default function AdminTariffsPage() {
       <Table
         head={
           <>
-            <Th>Name</Th>
-            <Th>Price</Th>
-            <Th>Duration</Th>
-            <Th>Devices</Th>
-            <Th>Countries</Th>
-            <Th>Active</Th>
+            <Th>Название</Th>
+            <Th>Цена</Th>
+            <Th>Срок</Th>
+            <Th>Устройства</Th>
+            <Th>Страны</Th>
+            <Th>Активен</Th>
           </>
         }
       >
         {tariffs.map((t) => (
-          <tr key={t.id}>
-            <Td>{t.name}</Td>
-            <Td>{money(t.priceCents, t.currency)}</Td>
-            <Td>{t.durationDays}d</Td>
+          <Tr key={t.id}>
+            <Td>
+              <span className="text-strong">{t.name}</span>
+            </Td>
+            <Td>
+              <span className="mono">{money(t.priceCents, t.currency)}</span>
+            </Td>
+            <Td>{t.durationDays} дн.</Td>
             <Td>{t.deviceLimit}</Td>
-            <Td>{t.allowedCountries.length === 0 ? 'All' : t.allowedCountries.map((c) => c.code).join(', ')}</Td>
+            <Td>{t.allowedCountries.length === 0 ? 'Все' : t.allowedCountries.map((c) => c.code).join(', ')}</Td>
             <Td>
               <button onClick={() => toggleActive(t)}>
                 <Badge status={t.isActive ? 'ACTIVE' : 'DISABLED'} />
               </button>
             </Td>
-          </tr>
+          </Tr>
         ))}
       </Table>
     </div>

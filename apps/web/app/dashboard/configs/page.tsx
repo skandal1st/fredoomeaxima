@@ -25,6 +25,15 @@ interface Peer {
   server: { name: string; country: { code: string; flagEmoji?: string } };
 }
 
+function translateError(msg: string): string {
+  if (/No active subscription/i.test(msg)) return 'Нет активной подписки';
+  if (/Device limit/i.test(msg)) return 'Достигнут лимит устройств по тарифу';
+  if (/Server is at capacity/i.test(msg)) return 'Сервер заполнен, выберите другой';
+  if (/Country not included/i.test(msg)) return 'Эта страна не входит в ваш тариф';
+  if (/Server not available|not registered/i.test(msg)) return 'Сервер недоступен';
+  return msg;
+}
+
 export default function ConfigsPage() {
   const [peers, setPeers] = useState<Peer[]>([]);
   const [countries, setCountries] = useState<Country[]>([]);
@@ -56,7 +65,7 @@ export default function ConfigsPage() {
   const createPeer = async () => {
     setError('');
     if (!serverId) {
-      setError('Select a server');
+      setError('Выберите сервер');
       return;
     }
     setCreating(true);
@@ -64,7 +73,7 @@ export default function ConfigsPage() {
       await api('/peers', { method: 'POST', body: JSON.stringify({ serverId }) });
       await load();
     } catch (err) {
-      setError((err as Error).message);
+      setError(translateError((err as Error).message));
     } finally {
       setCreating(false);
     }
@@ -76,8 +85,6 @@ export default function ConfigsPage() {
   };
 
   const downloadConf = (id: string) => {
-    // Direct link with the access token as a fallback header isn't possible for
-    // <a download>, so fetch as blob and trigger a download.
     fetch(`${apiUrl}/peers/${id}/config`, { headers: { Authorization: `Bearer ${tokenStore.access}` } })
       .then((r) => r.blob())
       .then((blob) => {
@@ -103,15 +110,18 @@ export default function ConfigsPage() {
 
   return (
     <div>
-      <PageHeader title="VPN Configs" subtitle="Split-tunnel WireGuard configs for selected services only" />
+      <PageHeader
+        title="VPN-конфиги"
+        subtitle="Раздельное туннелирование: через VPN идёт трафик только выбранных сервисов, остальной — напрямую."
+      />
 
-      <div className="card mb-6">
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Create config</h2>
+      <div className="card reveal mb-6">
+        <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-faint">Новый конфиг</h2>
         <div className="flex flex-wrap items-end gap-3">
           <div className="min-w-[180px]">
-            <label className="label">Country</label>
+            <label className="label">Страна</label>
             <select className="input" value={country} onChange={(e) => setCountry(e.target.value)}>
-              <option value="">Any</option>
+              <option value="">Любая</option>
               {countries.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.flagEmoji} {c.name}
@@ -119,10 +129,10 @@ export default function ConfigsPage() {
               ))}
             </select>
           </div>
-          <div className="min-w-[220px]">
-            <label className="label">Server</label>
+          <div className="min-w-[240px]">
+            <label className="label">Сервер</label>
             <select className="input" value={serverId} onChange={(e) => setServerId(e.target.value)}>
-              {servers.length === 0 && <option value="">No servers available</option>}
+              {servers.length === 0 && <option value="">Нет доступных серверов</option>}
               {servers.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.country.flagEmoji} {s.name} ({s.load}/{s.capacity})
@@ -131,63 +141,64 @@ export default function ConfigsPage() {
             </select>
           </div>
           <button className="btn-primary" onClick={createPeer} disabled={creating || !serverId}>
-            {creating ? 'Creating…' : 'Create config'}
+            {creating ? 'Создаём…' : 'Создать конфиг'}
           </button>
         </div>
-        <div className="mt-2">
+        <div className="mt-3">
           <ErrorText>{error}</ErrorText>
         </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
         {peers.map((peer) => (
-          <div key={peer.id} className="card">
+          <div key={peer.id} className="card reveal">
             <div className="flex items-start justify-between">
               <div>
-                <p className="font-semibold">
+                <p className="font-medium text-strong">
                   {peer.server.country.flagEmoji} {peer.server.name}
                 </p>
-                <p className="text-xs text-slate-400">{peer.assignedIp}</p>
+                <p className="mono mt-0.5 text-xs text-faint">{peer.assignedIp}</p>
               </div>
               <Badge status={peer.status} />
             </div>
 
             {peer.needsUpdate && (
-              <div className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                Route list updated — recreate this config to refresh allowed services.
+              <div
+                className="mt-3 rounded-lg px-3 py-2 text-xs"
+                style={{ background: 'rgba(247,198,107,0.08)', border: '1px solid rgba(247,198,107,0.25)', color: 'var(--warn)' }}
+              >
+                Список маршрутов обновился — пересоздайте конфиг, чтобы обновить список сервисов.
               </div>
             )}
 
             <div className="mt-4 flex flex-wrap gap-2">
               <button className="btn-ghost" onClick={() => showQr(peer.id)}>
-                QR code
+                QR-код
               </button>
               <button className="btn-ghost" onClick={() => downloadConf(peer.id)}>
-                Download .conf
+                Скачать .conf
               </button>
               <button className="btn-ghost" onClick={() => recreate(peer.id)}>
-                Recreate
+                Пересоздать
               </button>
               <button className="btn-danger" onClick={() => revoke(peer.id)}>
-                Revoke
+                Отозвать
               </button>
             </div>
           </div>
         ))}
-        {peers.length === 0 && <p className="text-sm text-slate-400">No configs yet.</p>}
+        {peers.length === 0 && <p className="text-sm text-faint">Конфигов пока нет.</p>}
       </div>
 
       {qr && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-          onClick={() => setQr(null)}
-        >
-          <div className="rounded-xl bg-white p-6 text-center" onClick={(e) => e.stopPropagation()}>
-            <h3 className="mb-3 font-semibold">Scan with the WireGuard app</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={() => setQr(null)}>
+          <div className="card text-center" onClick={(e) => e.stopPropagation()}>
+            <h3 className="mb-1 font-display font-semibold text-strong">Отсканируйте в приложении WireGuard</h3>
+            <p className="mb-4 text-xs text-faint">iOS / Android · «Добавить туннель» → «Сканировать QR-код»</p>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={qr.dataUrl} alt="WireGuard QR" className="mx-auto" width={320} height={320} />
-            <button className="btn-ghost mt-4" onClick={() => setQr(null)}>
-              Close
+            <img src={qr.dataUrl} alt="WireGuard QR" className="mx-auto rounded-lg" width={320} height={320} />
+            <button className="btn-ghost mt-4 w-full" onClick={() => setQr(null)}>
+              Закрыть
             </button>
           </div>
         </div>

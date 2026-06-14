@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../../lib/api';
 import { money, date } from '../../../lib/format';
-import { Badge, PageHeader, Spinner, Table, Th, Td } from '../../../components/ui';
+import { Badge, PageHeader, Spinner, Table, Th, Td, Tr } from '../../../components/ui';
 
 interface Payment {
   id: string;
@@ -35,42 +35,46 @@ export default function AdminPaymentsPage() {
 
   return (
     <div>
-      <PageHeader title="Payments" subtitle="All transactions; mark pending payments paid manually" />
+      <PageHeader title="Платежи" subtitle="Все транзакции; платёж со статусом «Ожидание» можно отметить оплаченным вручную" />
       <Table
         head={
           <>
-            <Th>Date</Th>
-            <Th>User</Th>
-            <Th>Plan</Th>
-            <Th>Amount</Th>
-            <Th>Provider</Th>
-            <Th>Txn</Th>
-            <Th>Status</Th>
-            <Th>Action</Th>
+            <Th>Дата</Th>
+            <Th>Пользователь</Th>
+            <Th>Тариф</Th>
+            <Th>Сумма</Th>
+            <Th>Провайдер</Th>
+            <Th>Транзакция</Th>
+            <Th>Статус</Th>
+            <Th>Действие</Th>
           </>
         }
       >
         {payments.map((p) => (
-          <tr key={p.id}>
+          <Tr key={p.id}>
             <Td>{date(p.createdAt)}</Td>
-            <Td>{p.user.email}</Td>
+            <Td>
+              <span className="text-strong">{p.user.email}</span>
+            </Td>
             <Td>{p.tariff?.name ?? '—'}</Td>
-            <Td>{money(p.amountCents, p.currency)}</Td>
+            <Td>
+              <span className="mono">{money(p.amountCents, p.currency)}</span>
+            </Td>
             <Td>{p.provider}</Td>
             <Td>
-              <span className="text-xs text-slate-400">{p.providerTxnId ?? '—'}</span>
+              <span className="mono text-faint">{p.providerTxnId ?? '—'}</span>
             </Td>
             <Td>
               <Badge status={p.status} />
             </Td>
             <Td>
               {p.status === 'PENDING' && (
-                <button className="text-xs text-brand-600 hover:underline" onClick={() => markPaid(p.id)}>
-                  Mark paid
+                <button className="text-xs text-accent hover:underline" onClick={() => markPaid(p.id)}>
+                  Отметить оплаченным
                 </button>
               )}
             </Td>
-          </tr>
+          </Tr>
         ))}
       </Table>
     </div>

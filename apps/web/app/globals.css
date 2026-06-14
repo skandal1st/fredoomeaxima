@@ -2,37 +2,252 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+  AximaVPN design system — "encrypted signal".
+  Dark ink canvas, atmospheric glows + fine grid, a single mint accent meaning
+  "connected / secure". Fonts (Cyrillic-capable): Unbounded (display), Golos Text
+  (UI), JetBrains Mono (technical data). Variables wired via next/font in layout.
+*/
+
 :root {
-  color-scheme: light;
+  color-scheme: dark;
+
+  --bg: #080b11;
+  --bg-elev: #0e131c;
+  --bg-elev-2: #131a25;
+  --bg-input: #0b1018;
+
+  --border: rgba(255, 255, 255, 0.07);
+  --border-strong: rgba(255, 255, 255, 0.14);
+
+  --text: #e9eef6;
+  --text-dim: #9aa7b8;
+  --text-faint: #61708a;
+
+  --accent: #5ef0c0;
+  --accent-press: #38d6a2;
+  --accent-ink: #052017;
+  --accent-glow: rgba(94, 240, 192, 0.16);
+
+  --violet: #8b9bff;
+  --danger: #ff6b6b;
+  --warn: #f7c66b;
+
+  --radius: 14px;
+  --radius-sm: 10px;
+
+  --font-display: var(--font-unbounded), system-ui, sans-serif;
+  --font-sans: var(--font-golos), system-ui, sans-serif;
+  --font-mono: var(--font-jbmono), ui-monospace, monospace;
+}
+
+* {
+  border-color: var(--border);
+}
+
+html {
+  font-family: var(--font-sans);
 }
 
 body {
-  @apply bg-slate-50 text-slate-800 antialiased;
+  background-color: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  min-height: 100vh;
+  position: relative;
+}
+
+/* Atmospheric background: mint + violet glow, fine grid, vignette. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  background:
+    radial-gradient(60rem 40rem at 12% -10%, rgba(94, 240, 192, 0.10), transparent 60%),
+    radial-gradient(50rem 40rem at 105% 8%, rgba(139, 155, 255, 0.10), transparent 55%),
+    radial-gradient(70rem 60rem at 50% 120%, rgba(94, 240, 192, 0.05), transparent 60%);
+  pointer-events: none;
+}
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.022) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.022) 1px, transparent 1px);
+  background-size: 46px 46px;
+  mask-image: radial-gradient(circle at 50% 30%, black, transparent 80%);
+  pointer-events: none;
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+/* Scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
 
 @layer components {
+  /* ── Buttons ── */
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed;
+    letter-spacing: 0.01em;
   }
   .btn-primary {
-    @apply btn bg-brand-600 text-white hover:bg-brand-700;
+    @apply btn;
+    background: var(--accent);
+    color: var(--accent-ink);
+    box-shadow: 0 0 0 1px rgba(94, 240, 192, 0.5), 0 8px 24px -10px var(--accent-glow);
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: var(--accent-press);
+    box-shadow: 0 0 0 1px var(--accent), 0 10px 30px -8px var(--accent-glow);
+    transform: translateY(-1px);
   }
   .btn-ghost {
-    @apply btn border border-slate-300 bg-white text-slate-700 hover:bg-slate-100;
+    @apply btn;
+    background: rgba(255, 255, 255, 0.02);
+    color: var(--text-dim);
+    border: 1px solid var(--border-strong);
+  }
+  .btn-ghost:hover:not(:disabled) {
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.05);
+    border-color: var(--accent);
   }
   .btn-danger {
-    @apply btn bg-red-600 text-white hover:bg-red-700;
+    @apply btn;
+    background: rgba(255, 107, 107, 0.12);
+    color: #ff9a9a;
+    border: 1px solid rgba(255, 107, 107, 0.35);
   }
+  .btn-danger:hover:not(:disabled) {
+    background: rgba(255, 107, 107, 0.2);
+  }
+
+  /* ── Surfaces ── */
   .card {
-    @apply rounded-xl border border-slate-200 bg-white p-5 shadow-sm;
+    position: relative;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.025), rgba(255, 255, 255, 0) 40%),
+      var(--bg-elev);
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 24px 50px -30px rgba(0, 0, 0, 0.8);
+    padding: 1.4rem;
   }
+
+  /* ── Forms ── */
   .input {
-    @apply w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500;
+    @apply w-full rounded-lg px-3 py-2 text-sm outline-none transition-all duration-150;
+    background: var(--bg-input);
+    border: 1px solid var(--border-strong);
+    color: var(--text);
+  }
+  .input::placeholder {
+    color: var(--text-faint);
+  }
+  .input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+  }
+  select.input option {
+    background: var(--bg-elev-2);
+    color: var(--text);
   }
   .label {
-    @apply mb-1 block text-sm font-medium text-slate-600;
+    @apply mb-1.5 block text-xs font-semibold uppercase tracking-wider;
+    color: var(--text-faint);
   }
+
+  /* ── Badges ── */
   .badge {
-    @apply inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium;
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold;
+    border: 1px solid transparent;
+  }
+  .badge::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: currentColor;
+    box-shadow: 0 0 8px currentColor;
+  }
+  .badge-ok {
+    color: var(--accent);
+    background: rgba(94, 240, 192, 0.08);
+    border-color: rgba(94, 240, 192, 0.25);
+  }
+  .badge-warn {
+    color: var(--warn);
+    background: rgba(247, 198, 107, 0.08);
+    border-color: rgba(247, 198, 107, 0.25);
+  }
+  .badge-bad {
+    color: #ff8a8a;
+    background: rgba(255, 107, 107, 0.08);
+    border-color: rgba(255, 107, 107, 0.25);
+  }
+  .badge-neutral {
+    color: var(--text-dim);
+    background: rgba(255, 255, 255, 0.04);
+    border-color: var(--border-strong);
+  }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: var(--font-display);
+  }
+  .mono {
+    font-family: var(--font-mono);
+    font-feature-settings: 'zero' 1;
+  }
+  .text-dim {
+    color: var(--text-dim);
+  }
+  .text-faint {
+    color: var(--text-faint);
+  }
+  .text-strong {
+    color: var(--text);
+  }
+  .text-accent {
+    color: var(--accent);
+  }
+  .hairline {
+    border-color: var(--border);
+  }
+  .surface-2 {
+    background: var(--bg-elev-2);
+  }
+  /* Staggered entrance for page content. */
+  .reveal {
+    opacity: 0;
+    transform: translateY(8px);
+    animation: reveal 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+  }
+  @keyframes reveal {
+    to {
+      opacity: 1;
+      transform: none;
+    }
   }
 }

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../../lib/api';
 import { date } from '../../../lib/format';
-import { Badge, PageHeader, Spinner, Table, Th, Td } from '../../../components/ui';
+import { Badge, PageHeader, Spinner, Table, Th, Td, Tr } from '../../../components/ui';
 
 interface UserRow {
   id: string;
@@ -68,18 +68,18 @@ export default function AdminUsersPage() {
 
   return (
     <div>
-      <PageHeader title="Users" subtitle="Manage accounts, subscriptions and peers" />
+      <PageHeader title="Пользователи" subtitle="Аккаунты, подписки и конфиги" />
 
       <div className="mb-4 flex gap-2">
         <input
           className="input max-w-xs"
-          placeholder="Search by email"
+          placeholder="Поиск по email"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && loadUsers(search)}
         />
         <button className="btn-ghost" onClick={() => loadUsers(search)}>
-          Search
+          Найти
         </button>
       </div>
 
@@ -88,36 +88,40 @@ export default function AdminUsersPage() {
           head={
             <>
               <Th>Email</Th>
-              <Th>Status</Th>
-              <Th>Joined</Th>
+              <Th>Статус</Th>
+              <Th>Регистрация</Th>
             </>
           }
         >
           {users.map((u) => (
-            <tr key={u.id} className="cursor-pointer hover:bg-slate-50" onClick={() => openCard(u.id)}>
-              <Td>{u.email}</Td>
+            <Tr key={u.id} onClick={() => openCard(u.id)}>
+              <Td>
+                <span className="text-strong">{u.email}</span>
+              </Td>
               <Td>
                 <Badge status={u.status} />
               </Td>
               <Td>{date(u.createdAt)}</Td>
-            </tr>
+            </Tr>
           ))}
         </Table>
 
         {card && (
-          <div className="card space-y-4">
+          <div className="card reveal space-y-5">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="font-semibold">{card.email}</h2>
-                <Badge status={card.status} />
+                <h2 className="font-medium text-strong">{card.email}</h2>
+                <div className="mt-1">
+                  <Badge status={card.status} />
+                </div>
               </div>
               <button className="btn-ghost" onClick={() => toggleBlock(card)}>
-                {card.status === 'BLOCKED' ? 'Unblock' : 'Block'}
+                {card.status === 'BLOCKED' ? 'Разблокировать' : 'Заблокировать'}
               </button>
             </div>
 
             <div>
-              <h3 className="mb-2 text-xs font-semibold uppercase text-slate-500">Grant / extend subscription</h3>
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-faint">Выдать / продлить подписку</h3>
               <div className="flex gap-2">
                 <select className="input" value={grantTariff} onChange={(e) => setGrantTariff(e.target.value)}>
                   {tariffs.map((t) => (
@@ -127,33 +131,33 @@ export default function AdminUsersPage() {
                   ))}
                 </select>
                 <button className="btn-primary" onClick={grant}>
-                  Grant
+                  Выдать
                 </button>
               </div>
             </div>
 
             <div>
-              <h3 className="mb-2 text-xs font-semibold uppercase text-slate-500">Subscriptions</h3>
-              {card.subscriptions.length === 0 && <p className="text-sm text-slate-400">None</p>}
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-faint">Подписки</h3>
+              {card.subscriptions.length === 0 && <p className="text-sm text-faint">Нет</p>}
               {card.subscriptions.map((s) => (
-                <div key={s.id} className="flex items-center justify-between border-b border-slate-100 py-1 text-sm">
-                  <span>{s.tariff.name}</span>
-                  <span className="text-slate-400">until {date(s.endsAt)}</span>
+                <div key={s.id} className="flex items-center justify-between gap-2 border-t py-2 text-sm">
+                  <span className="text-strong">{s.tariff.name}</span>
+                  <span className="text-faint">до {date(s.endsAt)}</span>
                   <Badge status={s.status} />
                 </div>
               ))}
             </div>
 
             <div>
-              <h3 className="mb-2 text-xs font-semibold uppercase text-slate-500">Active peers</h3>
-              {card.peers.length === 0 && <p className="text-sm text-slate-400">None</p>}
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-faint">Активные конфиги</h3>
+              {card.peers.length === 0 && <p className="text-sm text-faint">Нет</p>}
               {card.peers.map((p) => (
-                <div key={p.id} className="flex items-center justify-between border-b border-slate-100 py-1 text-sm">
-                  <span>
-                    {p.server.name} · {p.assignedIp}
+                <div key={p.id} className="flex items-center justify-between border-t py-2 text-sm">
+                  <span className="text-dim">
+                    {p.server.name} · <span className="mono">{p.assignedIp}</span>
                   </span>
-                  <button className="text-xs text-red-600 hover:underline" onClick={() => deletePeer(p.id)}>
-                    Delete
+                  <button className="text-xs hover:underline" style={{ color: '#ff8a8a' }} onClick={() => deletePeer(p.id)}>
+                    Удалить
                   </button>
                 </div>
               ))}

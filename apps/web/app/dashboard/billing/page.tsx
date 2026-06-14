@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../../lib/api';
 import { money, date } from '../../../lib/format';
-import { Badge, PageHeader, Spinner, Table, Th, Td } from '../../../components/ui';
+import { Badge, PageHeader, Spinner, Table, Th, Td, Tr } from '../../../components/ui';
 
 interface Tariff {
   id: string;
@@ -48,7 +48,6 @@ export default function BillingPage() {
       if (res.confirmationUrl) {
         window.location.href = res.confirmationUrl;
       } else {
-        // Mock provider settles immediately.
         await load();
       }
     } finally {
@@ -60,51 +59,54 @@ export default function BillingPage() {
 
   return (
     <div>
-      <PageHeader title="Billing" subtitle="Choose a plan and view your payment history" />
+      <PageHeader title="Подписка и оплата" subtitle="Выберите тариф и смотрите историю платежей" />
 
-      <div className="mb-8 grid gap-4 md:grid-cols-3">
-        {tariffs.map((t) => (
-          <div key={t.id} className="card flex flex-col">
-            <h3 className="text-lg font-semibold">{t.name}</h3>
-            <p className="mt-1 text-3xl font-bold">{money(t.priceCents, t.currency)}</p>
-            <p className="mt-1 text-sm text-slate-500">
-              {t.durationDays} days · up to {t.deviceLimit} devices
+      <div className="mb-9 grid gap-4 md:grid-cols-3">
+        {tariffs.map((t, i) => (
+          <div key={t.id} className="card reveal flex flex-col" style={{ animationDelay: `${i * 50}ms` }}>
+            <h3 className="font-display text-lg font-semibold text-strong">{t.name}</h3>
+            <p className="mono mt-2 text-3xl font-bold text-strong">{money(t.priceCents, t.currency)}</p>
+            <p className="mt-1.5 text-sm text-dim">
+              {t.durationDays} дней · до {t.deviceLimit} устройств
             </p>
-            <button className="btn-primary mt-4" disabled={busy === t.id} onClick={() => checkout(t.id)}>
-              {busy === t.id ? 'Processing…' : 'Subscribe'}
+            <button className="btn-primary mt-5" disabled={busy === t.id} onClick={() => checkout(t.id)}>
+              {busy === t.id ? 'Обработка…' : 'Оформить'}
             </button>
           </div>
         ))}
+        {tariffs.length === 0 && <p className="text-sm text-faint">Тарифы ещё не настроены.</p>}
       </div>
 
-      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Payment history</h2>
+      <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-faint">История платежей</h2>
       <Table
         head={
           <>
-            <Th>Date</Th>
-            <Th>Plan</Th>
-            <Th>Amount</Th>
-            <Th>Status</Th>
+            <Th>Дата</Th>
+            <Th>Тариф</Th>
+            <Th>Сумма</Th>
+            <Th>Статус</Th>
           </>
         }
       >
         {payments.map((p) => (
-          <tr key={p.id}>
+          <Tr key={p.id}>
             <Td>{date(p.createdAt)}</Td>
             <Td>{p.tariff?.name ?? '—'}</Td>
-            <Td>{money(p.amountCents, p.currency)}</Td>
+            <Td>
+              <span className="mono text-strong">{money(p.amountCents, p.currency)}</span>
+            </Td>
             <Td>
               <Badge status={p.status} />
             </Td>
-          </tr>
+          </Tr>
         ))}
         {payments.length === 0 && (
-          <tr>
-            <Td>No payments yet.</Td>
+          <Tr>
+            <Td>Платежей пока нет.</Td>
             <Td>{''}</Td>
             <Td>{''}</Td>
             <Td>{''}</Td>
-          </tr>
+          </Tr>
         )}
       </Table>
     </div>

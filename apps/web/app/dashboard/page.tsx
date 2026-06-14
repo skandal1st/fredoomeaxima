@@ -34,48 +34,57 @@ export default function DashboardOverview() {
 
   return (
     <div>
-      <PageHeader title="Overview" subtitle="Your subscription and quick actions" />
+      <PageHeader title="Обзор" subtitle="Ваша подписка и быстрые действия" />
 
       <div className="grid gap-5 md:grid-cols-2">
-        <div className="card">
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Subscription</h2>
+        <div className="card reveal">
+          <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-faint">Подписка</h2>
           {sub ? (
-            <div className="space-y-2">
+            <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-lg font-semibold">{sub.tariff.name}</span>
+                <span className="font-display text-xl font-semibold text-strong">{sub.tariff.name}</span>
                 <Badge status={sub.status} />
               </div>
-              <p className="text-sm text-slate-500">Renews / expires: {date(sub.endsAt)}</p>
-              <p className="text-sm text-slate-500">Device limit: {sub.tariff.deviceLimit}</p>
-              <Link href="/dashboard/configs" className="btn-primary mt-3 inline-flex">
-                Manage VPN configs
+              <div className="space-y-1.5 text-sm text-dim">
+                <p>
+                  Действует до: <span className="mono text-strong">{date(sub.endsAt)}</span>
+                </p>
+                <p>
+                  Лимит устройств: <span className="text-strong">{sub.tariff.deviceLimit}</span>
+                </p>
+              </div>
+              <Link href="/dashboard/configs" className="btn-primary mt-2 inline-flex">
+                Управлять VPN-конфигами
               </Link>
             </div>
           ) : (
             <div className="space-y-3">
-              <p className="text-sm text-slate-500">No active subscription. Choose a plan to get started.</p>
+              <p className="text-sm text-dim">Активной подписки нет. Выберите тариф, чтобы начать.</p>
               <Link href="/dashboard/billing" className="btn-primary inline-flex">
-                View plans
+                Выбрать тариф
               </Link>
             </div>
           )}
         </div>
 
-        <div className="card">
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Available plans</h2>
-          <ul className="space-y-2">
+        <div className="card reveal" style={{ animationDelay: '60ms' }}>
+          <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-faint">Доступные тарифы</h2>
+          <ul className="space-y-1">
             {tariffs.map((t) => (
-              <li key={t.id} className="flex items-center justify-between border-b border-slate-100 pb-2 last:border-0">
+              <li
+                key={t.id}
+                className="flex items-center justify-between border-t py-3 first:border-t-0"
+              >
                 <div>
-                  <p className="font-medium">{t.name}</p>
-                  <p className="text-xs text-slate-400">
-                    {t.durationDays} days · {t.deviceLimit} devices
+                  <p className="font-medium text-strong">{t.name}</p>
+                  <p className="mt-0.5 text-xs text-faint">
+                    {t.durationDays} дн. · {t.deviceLimit} устройств
                   </p>
                 </div>
-                <span className="font-semibold">{money(t.priceCents, t.currency)}</span>
+                <span className="mono font-semibold text-accent">{money(t.priceCents, t.currency)}</span>
               </li>
             ))}
-            {tariffs.length === 0 && <p className="text-sm text-slate-400">No plans configured yet.</p>}
+            {tariffs.length === 0 && <p className="text-sm text-faint">Тарифы ещё не настроены.</p>}
           </ul>
         </div>
       </div>

@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../../lib/api';
-import { money, date } from '../../lib/format';
-import { Badge, PageHeader, Spinner, Table, Th, Td, ErrorText } from '../../components/ui';
+import { money } from '../../lib/format';
+import { Badge, PageHeader, Spinner, Table, Th, Td, Tr, ErrorText } from '../../components/ui';
 
 interface Country {
   id: string;
@@ -53,7 +53,6 @@ export default function AdminServersPage() {
   const [error, setError] = useState('');
   const [created, setCreated] = useState<{ command: string } | null>(null);
 
-  // Live provisioning log viewer.
   const [logServer, setLogServer] = useState<{ id: string; name: string } | null>(null);
   const [prov, setProv] = useState<ProvState | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -103,7 +102,7 @@ export default function AdminServersPage() {
     e.preventDefault();
     setError('');
     if (form.provision && !form.sshPassword) {
-      setError('SSH password is required to deploy over SSH');
+      setError('Для развёртывания по SSH нужен пароль');
       return;
     }
     try {
@@ -121,7 +120,7 @@ export default function AdminServersPage() {
         },
       );
       setCreated({ command: res.command });
-      const provisioning = res.provisioning;
+      const { provisioning } = res;
       const serverId = res.server.id;
       const serverName = res.server.name;
       setForm({ ...EMPTY, countryId: countries[0]?.id ?? '' });
@@ -133,7 +132,7 @@ export default function AdminServersPage() {
   };
 
   const reprovision = async (s: Server) => {
-    const password = prompt(`SSH password for ${s.country.name} server "${s.name}" (${s.ip})`);
+    const password = prompt(`SSH-пароль для сервера «${s.name}» (${s.ip})`);
     if (!password) return;
     await api(`/admin/servers/${s.id}/provision`, { method: 'POST', body: JSON.stringify({ password }) });
     openLog(s.id, s.name);
@@ -145,21 +144,36 @@ export default function AdminServersPage() {
   };
 
   const remove = async (id: string) => {
-    if (!confirm('Delete this server?')) return;
+    if (!confirm('Удалить сервер?')) return;
     await api(`/admin/servers/${id}`, { method: 'DELETE' });
     await load();
   };
 
   if (loading) return <Spinner />;
 
+  const field = (key: keyof typeof EMPTY, placeholder: string, type = 'text') => (
+    <input
+      className="input"
+      type={type}
+      placeholder={placeholder}
+      value={form[key] as string | number}
+      onChange={(e) =>
+        setForm({ ...form, [key]: type === 'number' ? Number(e.target.value) : e.target.value })
+      }
+    />
+  );
+
   return (
     <div>
-      <PageHeader title="VPN Servers" subtitle="Add a server — the panel installs WireGuard over SSH automatically" />
+      <PageHeader
+        title="VPN-серверы"
+        subtitle="Добавьте сервер — панель сама подключится по SSH и развернёт WireGuard."
+      />
 
-      <div className="mb-6 card">
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Add server</h2>
+      <div className="card reveal mb-6">
+        <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-faint">Добавить сервер</h2>
         <form onSubmit={submit} className="grid gap-3 md:grid-cols-3">
-          <input className="input" placeholder="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+          {field('name', 'Название')}
           <select className="input" value={form.countryId} onChange={(e) => setForm({ ...form, countryId: e.target.value })} required>
             {countries.map((c) => (
               <option key={c.id} value={c.id}>
@@ -167,43 +181,51 @@ export default function AdminServersPage() {
               </option>
             ))}
           </select>
-          <input className="input" placeholder="Public IP" value={form.ip} onChange={(e) => setForm({ ...form, ip: e.target.value })} required />
+          {field('ip', 'Публичный IP')}
 
-          <input className="input" placeholder="SSH user" value={form.sshUser} onChange={(e) => setForm({ ...form, sshUser: e.target.value })} />
-          <input className="input" type="number" placeholder="SSH port" value={form.sshPort} onChange={(e) => setForm({ ...form, sshPort: Number(e.target.value) })} />
+          {field('sshUser', 'SSH-пользователь')}
+          {field('sshPort', 'SSH-порт', 'number')}
           <input
             className="input"
             type="password"
-            placeholder="SSH password"
+            placeholder="SSH-пароль"
             autoComplete="new-password"
             value={form.sshPassword}
             onChange={(e) => setForm({ ...form, sshPassword: e.target.value })}
           />
 
-          <input className="input" type="number" placeholder="WG port" value={form.wgEndpointPort} onChange={(e) => setForm({ ...form, wgEndpointPort: Number(e.target.value) })} />
-          <input className="input" type="number" placeholder="Max peers" value={form.maxPeers} onChange={(e) => setForm({ ...form, maxPeers: Number(e.target.value) })} />
-          <input className="input" placeholder="Provider (e.g. Hetzner)" value={form.provider} onChange={(e) => setForm({ ...form, provider: e.target.value })} />
-          <input className="input" type="number" placeholder="Monthly cost (cents)" value={form.monthlyCostCents} onChange={(e) => setForm({ ...form, monthlyCostCents: Number(e.target.value) })} />
-          <input className="input" placeholder="Cost currency" value={form.costCurrency} onChange={(e) => setForm({ ...form, costCurrency: e.target.value })} />
+          {field('wgEndpointPort', 'Порт WireGuard', 'number')}
+          {field('maxPeers', 'Макс. пользователей', 'number')}
+          {field('provider', 'Провайдер (напр. Hetzner)')}
+          {field('monthlyCostCents', 'Стоимость в мес. (в центах)', 'number')}
+          {field('costCurrency', 'Валюта расходов')}
 
-          <label className="flex items-center gap-2 text-sm text-slate-600">
-            <input type="checkbox" checked={form.provision} onChange={(e) => setForm({ ...form, provision: e.target.checked })} />
-            Deploy over SSH now
+          <label className="flex items-center gap-2.5 text-sm text-dim">
+            <input
+              type="checkbox"
+              checked={form.provision}
+              onChange={(e) => setForm({ ...form, provision: e.target.checked })}
+              style={{ accentColor: 'var(--accent)' }}
+            />
+            Развернуть по SSH сейчас
           </label>
 
           <div className="md:col-span-3">
-            <p className="text-xs text-slate-400">
-              With “Deploy over SSH” the panel connects, installs WireGuard + agent and registers the server. The SSH
-              password is used once and never stored.
+            <p className="text-xs text-faint">
+              При включённой опции панель подключится по SSH, установит WireGuard и агент и зарегистрирует сервер.
+              Пароль используется один раз и не сохраняется.
             </p>
             <ErrorText>{error}</ErrorText>
-            <button className="btn-primary mt-2">Add server</button>
+            <button className="btn-primary mt-3">Добавить сервер</button>
           </div>
         </form>
         {created && !form.provision && (
-          <div className="mt-4 rounded-lg bg-slate-900 p-4 text-xs text-slate-100">
-            <p className="mb-2 text-slate-400">Or run this manually on a fresh Ubuntu 22.04/24.04 VPS as root:</p>
-            <code className="block break-all">{created.command}</code>
+          <div
+            className="mono mt-4 rounded-lg p-4 text-xs"
+            style={{ background: 'var(--bg-input)', border: '1px solid var(--border-strong)', color: 'var(--text-dim)' }}
+          >
+            <p className="mb-2 text-faint">Или запустите вручную на чистом Ubuntu 22.04/24.04 от root:</p>
+            <code className="block break-all text-accent">{created.command}</code>
           </div>
         )}
       </div>
@@ -211,28 +233,36 @@ export default function AdminServersPage() {
       <Table
         head={
           <>
-            <Th>Name</Th>
-            <Th>Country</Th>
+            <Th>Название</Th>
+            <Th>Страна</Th>
             <Th>IP</Th>
-            <Th>Load</Th>
-            <Th>Cost / mo</Th>
-            <Th>Status</Th>
-            <Th>Deploy</Th>
-            <Th>Actions</Th>
+            <Th>Нагрузка</Th>
+            <Th>Стоимость/мес</Th>
+            <Th>Статус</Th>
+            <Th>Развёртывание</Th>
+            <Th>Действия</Th>
           </>
         }
       >
         {servers.map((s) => (
-          <tr key={s.id}>
-            <Td>{s.name}</Td>
+          <Tr key={s.id}>
+            <Td>
+              <span className="text-strong">{s.name}</span>
+            </Td>
             <Td>
               {s.country.flagEmoji} {s.country.name}
             </Td>
-            <Td>{s.ip}</Td>
             <Td>
-              {s._count.peers}/{s.maxPeers}
+              <span className="mono">{s.ip}</span>
             </Td>
-            <Td>{money(s.monthlyCostCents, s.costCurrency)}</Td>
+            <Td>
+              <span className="mono">
+                {s._count.peers}/{s.maxPeers}
+              </span>
+            </Td>
+            <Td>
+              <span className="mono">{money(s.monthlyCostCents, s.costCurrency)}</span>
+            </Td>
             <Td>
               <Badge status={s.status} />
             </Td>
@@ -240,48 +270,51 @@ export default function AdminServersPage() {
               <div className="flex items-center gap-2">
                 <Badge status={s.provisionStatus} />
                 {s.provisionStatus === 'RUNNING' && (
-                  <button className="text-xs text-brand-600 hover:underline" onClick={() => openLog(s.id, s.name)}>
-                    Log
+                  <button className="text-xs text-accent hover:underline" onClick={() => openLog(s.id, s.name)}>
+                    лог
                   </button>
                 )}
               </div>
             </Td>
             <Td>
-              <div className="flex gap-2">
+              <div className="flex gap-3">
                 {(s.status === 'PENDING' || s.provisionStatus === 'FAILED') && (
-                  <button className="text-xs text-brand-600 hover:underline" onClick={() => reprovision(s)}>
-                    {s.provisionStatus === 'FAILED' ? 'Retry' : 'Deploy'}
+                  <button className="text-xs text-accent hover:underline" onClick={() => reprovision(s)}>
+                    {s.provisionStatus === 'FAILED' ? 'Повторить' : 'Развернуть'}
                   </button>
                 )}
-                <button className="text-xs text-brand-600 hover:underline" onClick={() => runHealth(s.id)}>
-                  Check
+                <button className="text-xs text-dim hover:text-strong" onClick={() => runHealth(s.id)}>
+                  Проверить
                 </button>
-                <button className="text-xs text-red-600 hover:underline" onClick={() => remove(s.id)}>
-                  Delete
+                <button className="text-xs hover:underline" style={{ color: '#ff8a8a' }} onClick={() => remove(s.id)}>
+                  Удалить
                 </button>
               </div>
             </Td>
-          </tr>
+          </Tr>
         ))}
       </Table>
 
       {logServer && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={closeLog}>
-          <div className="flex h-[70vh] w-full max-w-3xl flex-col rounded-xl bg-white p-5" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={closeLog}>
+          <div className="card flex h-[70vh] w-full max-w-3xl flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="mb-3 flex items-center justify-between">
-              <h3 className="font-semibold">Provisioning · {logServer.name}</h3>
+              <h3 className="font-display font-semibold text-strong">Развёртывание · {logServer.name}</h3>
               <div className="flex items-center gap-3">
                 {prov && <Badge status={prov.provisionStatus} />}
                 <button className="btn-ghost" onClick={closeLog}>
-                  Close
+                  Закрыть
                 </button>
               </div>
             </div>
-            <pre className="flex-1 overflow-auto rounded-lg bg-slate-900 p-4 text-xs leading-relaxed text-slate-100">
-              {prov?.provisionLog || 'Waiting for output…'}
+            <pre
+              className="mono flex-1 overflow-auto rounded-lg p-4 text-xs leading-relaxed"
+              style={{ background: '#05080d', border: '1px solid var(--border)', color: '#b9e8d6' }}
+            >
+              {prov?.provisionLog || 'Ожидание вывода…'}
             </pre>
             {prov?.provisionStatus === 'SUCCESS' && (
-              <p className="mt-2 text-sm text-green-600">Done — server status is now {prov.status}.</p>
+              <p className="mt-2 text-sm text-accent">Готово — статус сервера: {prov.status}.</p>
             )}
           </div>
         </div>

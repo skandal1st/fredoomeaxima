@@ -1,22 +1,52 @@
 export function money(cents: number, currency: string): string {
-  return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(cents / 100);
+  try {
+    return new Intl.NumberFormat('ru-RU', { style: 'currency', currency }).format(cents / 100);
+  } catch {
+    return `${(cents / 100).toFixed(2)} ${currency}`;
+  }
 }
 
 export function date(value?: string | Date | null): string {
   if (!value) return '—';
   const d = typeof value === 'string' ? new Date(value) : value;
-  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  return d.toLocaleDateString('ru-RU', { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
+/** Russian labels for status codes coming from the API. */
+const STATUS_LABELS: Record<string, string> = {
+  ACTIVE: 'Активно',
+  EXPIRED: 'Истёк',
+  CANCELLED: 'Отменён',
+  PENDING: 'Ожидание',
+  SUCCEEDED: 'Оплачено',
+  MANUAL: 'Вручную',
+  FAILED: 'Ошибка',
+  BLOCKED: 'Заблокирован',
+  DISABLED: 'Выключен',
+  MAINTENANCE: 'Обслуживание',
+  UNREACHABLE: 'Недоступен',
+  REVOKED: 'Отозван',
+  NONE: 'Не развёрнут',
+  RUNNING: 'Установка…',
+  SUCCESS: 'Развёрнут',
+};
+
+export function statusLabel(status: string): string {
+  return STATUS_LABELS[status] ?? status;
+}
+
+/** Maps a status to a badge variant class defined in globals.css. */
 export function statusColor(status: string): string {
   switch (status) {
     case 'ACTIVE':
     case 'SUCCEEDED':
     case 'MANUAL':
-      return 'bg-green-100 text-green-700';
+    case 'SUCCESS':
+      return 'badge-ok';
     case 'PENDING':
     case 'MAINTENANCE':
-      return 'bg-amber-100 text-amber-700';
+    case 'RUNNING':
+      return 'badge-warn';
     case 'EXPIRED':
     case 'FAILED':
     case 'UNREACHABLE':
@@ -24,8 +54,8 @@ export function statusColor(status: string): string {
     case 'DISABLED':
     case 'REVOKED':
     case 'CANCELLED':
-      return 'bg-red-100 text-red-700';
+      return 'badge-bad';
     default:
-      return 'bg-slate-100 text-slate-600';
+      return 'badge-neutral';
   }
 }

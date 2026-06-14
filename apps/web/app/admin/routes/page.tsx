@@ -55,35 +55,43 @@ export default function AdminRoutesPage() {
   return (
     <div>
       <PageHeader
-        title="Route Groups"
-        subtitle="Split-tunnel services — domains are resolved to IP ranges and versioned"
+        title="Маршруты"
+        subtitle="Сервисы для раздельного туннелирования — домены резолвятся в диапазоны IP и версионируются"
         action={
           <button className="btn-primary" onClick={resolveNow} disabled={resolving}>
-            {resolving ? 'Resolving…' : 'Resolve & publish now'}
+            {resolving ? 'Обновляем…' : 'Обновить и опубликовать'}
           </button>
         }
       />
 
       {current && (
-        <div className="mb-4 rounded-lg bg-brand-50 px-4 py-2 text-sm text-brand-700">
-          Current route list: <strong>v{current.version}</strong> · {current.entries.length} CIDRs · published {date(current.createdAt)}
+        <div
+          className="reveal mb-5 rounded-lg px-4 py-2.5 text-sm"
+          style={{ background: 'rgba(94,240,192,0.06)', border: '1px solid rgba(94,240,192,0.2)', color: 'var(--text-dim)' }}
+        >
+          Текущий список маршрутов: <strong className="text-accent">v{current.version}</strong> · {current.entries.length} CIDR ·
+          опубликован {date(current.createdAt)}
         </div>
       )}
 
       <div className="grid gap-4 md:grid-cols-2">
         {groups.map((g) => (
-          <div key={g.id} className="card">
+          <div key={g.id} className="card reveal">
             <div className="flex items-center justify-between">
-              <h3 className="font-semibold">{g.name}</h3>
-              <label className="flex cursor-pointer items-center gap-2 text-sm">
-                <input type="checkbox" checked={g.isEnabled} onChange={() => toggle(g)} />
-                {g.isEnabled ? 'Enabled' : 'Disabled'}
+              <h3 className="font-display font-semibold text-strong">{g.name}</h3>
+              <label className="flex cursor-pointer items-center gap-2 text-sm text-dim">
+                <input type="checkbox" checked={g.isEnabled} onChange={() => toggle(g)} style={{ accentColor: 'var(--accent)' }} />
+                {g.isEnabled ? 'Включён' : 'Выключен'}
               </label>
             </div>
-            <p className="mt-1 text-xs text-slate-400">{entriesByGroup(g.key)} resolved CIDRs in current version</p>
-            <div className="mt-2 flex flex-wrap gap-1">
+            <p className="mt-1 text-xs text-faint">{entriesByGroup(g.key)} CIDR в текущей версии</p>
+            <div className="mt-3 flex flex-wrap gap-1.5">
               {g.domains.map((d) => (
-                <span key={d} className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
+                <span
+                  key={d}
+                  className="mono rounded px-2 py-0.5 text-xs"
+                  style={{ background: 'rgba(255,255,255,0.04)', color: 'var(--text-dim)' }}
+                >
                   {d}
                 </span>
               ))}

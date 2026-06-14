@@ -3,12 +3,12 @@
 import { Shell } from '../../components/shell';
 
 const NAV = [
-  { href: '/admin', label: 'Servers' },
-  { href: '/admin/users', label: 'Users' },
-  { href: '/admin/tariffs', label: 'Tariffs' },
-  { href: '/admin/payments', label: 'Payments' },
-  { href: '/admin/routes', label: 'Route Groups' },
-  { href: '/admin/billing', label: 'Infra Billing' },
+  { href: '/admin', label: 'Серверы' },
+  { href: '/admin/users', label: 'Пользователи' },
+  { href: '/admin/tariffs', label: 'Тарифы' },
+  { href: '/admin/payments', label: 'Платежи' },
+  { href: '/admin/routes', label: 'Маршруты' },
+  { href: '/admin/billing', label: 'Расходы на инфраструктуру' },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
