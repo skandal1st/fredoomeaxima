@@ -1,0 +1,334 @@
+// AximaVPN data model.
+// Conventions: cents for money (integer), UTC timestamps, cuid ids.
+// Sensitive columns suffixed `Enc` store AES-256-GCM ciphertext (see common/crypto.service.ts).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ──────────────────────────── Enums ────────────────────────────
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  BLOCKED
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
+enum SubscriptionSource {
+  PAYMENT
+  MANUAL
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  MANUAL
+}
+
+enum ServerStatus {
+  PENDING
+  ACTIVE
+  DISABLED
+  MAINTENANCE
+  UNREACHABLE
+}
+
+enum PeerStatus {
+  ACTIVE
+  REVOKED
+}
+
+enum ServerCostStatus {
+  PAID
+  PENDING
+  OVERDUE
+}
+
+enum ProvisionStatus {
+  NONE
+  RUNNING
+  SUCCESS
+  FAILED
+}
+
+// ──────────────────────────── Identity ────────────────────────────
+
+model User {
+  id           String     @id @default(cuid())
+  email        String     @unique
+  passwordHash String
+  role         UserRole   @default(USER)
+  status       UserStatus @default(ACTIVE)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  subscriptions Subscription[]
+  payments      Payment[]
+  peers         WireguardPeer[]
+  refreshTokens RefreshToken[]
+  adminActions  AdminAction[]  @relation("AdminActor")
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  revoked   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+// ──────────────────────────── Billing (user-facing) ────────────────────────────
+
+model Tariff {
+  id           String   @id @default(cuid())
+  name         String
+  priceCents   Int
+  currency     String   @default("RUB")
+  durationDays Int
+  deviceLimit  Int      @default(1)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  allowedCountries VpnCountry[]   @relation("TariffCountries")
+  subscriptions    Subscription[]
+  payments         Payment[]
+
+  @@map("tariffs")
+}
+
+model Subscription {
+  id        String             @id @default(cuid())
+  userId    String
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tariffId  String
+  tariff    Tariff             @relation(fields: [tariffId], references: [id])
+  status    SubscriptionStatus @default(ACTIVE)
+  source    SubscriptionSource @default(PAYMENT)
+  startsAt  DateTime           @default(now())
+  endsAt    DateTime
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  @@index([userId, status])
+  @@map("subscriptions")
+}
+
+model Payment {
+  id            String        @id @default(cuid())
+  userId        String
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tariffId      String?
+  tariff        Tariff?       @relation(fields: [tariffId], references: [id])
+  amountCents   Int
+  currency      String        @default("RUB")
+  status        PaymentStatus @default(PENDING)
+  provider      String        @default("mock")
+  providerTxnId String?       @unique
+  createdAt     DateTime      @default(now())
+  paidAt        DateTime?
+
+  @@index([userId])
+  @@map("payments")
+}
+
+// ──────────────────────────── VPN infrastructure ────────────────────────────
+
+model VpnCountry {
+  id        String       @id @default(cuid())
+  code      String       @unique // ISO 3166-1 alpha-2
+  name      String
+  flagEmoji String?
+  servers   VpnServer[]
+  tariffs   Tariff[]     @relation("TariffCountries")
+
+  @@map("vpn_countries")
+}
+
+model VpnServer {
+  id              String       @id @default(cuid())
+  name            String
+  countryId       String
+  country         VpnCountry   @relation(fields: [countryId], references: [id])
+  ip              String
+  sshUser         String       @default("root")
+  sshPort         Int          @default(22)
+  wgEndpointPort  Int          @default(51820)
+  agentUrl        String // e.g. https://1.2.3.4:8443
+  agentTokenEnc   String? // AES-GCM ciphertext of the bearer token shared with the agent
+  serverPublicKey String? // WG server public key, set on register
+  maxPeers        Int          @default(200)
+  status          ServerStatus @default(PENDING)
+
+  // Bootstrap / registration
+  installToken    String?   @unique
+  registeredAt    DateTime?
+  lastHeartbeatAt DateTime?
+
+  // SSH provisioning (panel-driven install). The SSH password is never stored.
+  provisionStatus ProvisionStatus @default(NONE)
+  provisionLog    String?         @db.Text
+
+  // Admin infra billing
+  monthlyCostCents Int       @default(0)
+  costCurrency     String    @default("USD")
+  provider         String?
+  nextRenewalAt    DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  peers        WireguardPeer[]
+  healthChecks ServerHealthCheck[]
+  costRecords  ServerCostRecord[]
+
+  @@index([countryId, status])
+  @@map("vpn_servers")
+}
+
+model WireguardPeer {
+  id                 String     @id @default(cuid())
+  userId             String
+  user               User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  serverId           String
+  server             VpnServer  @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  label              String?
+  publicKey          String
+  privateKeyEnc      String // AES-GCM ciphertext
+  presharedKeyEnc    String // AES-GCM ciphertext
+  assignedIp         String // e.g. 10.66.66.5
+  status             PeerStatus @default(ACTIVE)
+
+  // split-tunnel versioning
+  routeListVersionId String?
+  routeListVersion   RouteListVersion? @relation(fields: [routeListVersionId], references: [id])
+  needsUpdate        Boolean           @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([serverId, assignedIp])
+  @@unique([serverId, publicKey])
+  @@index([userId, status])
+  @@map("wireguard_peers")
+}
+
+// ──────────────────────────── Split-tunnel routing ────────────────────────────
+
+model RouteGroup {
+  id        String   @id @default(cuid())
+  key       String   @unique // telegram, youtube, ...
+  name      String
+  domains   String[] // resolved by the route-resolver worker
+  isEnabled Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  entries RouteEntry[]
+
+  @@map("route_groups")
+}
+
+// A monotonic snapshot of the resolved route table. Peers reference the version
+// they were built with; a newer version flags affected peers needsUpdate.
+model RouteListVersion {
+  id        String   @id @default(cuid())
+  version   Int      @unique
+  note      String?
+  createdAt DateTime @default(now())
+
+  entries RouteEntry[]
+  peers   WireguardPeer[]
+
+  @@map("route_list_versions")
+}
+
+model RouteEntry {
+  id           String           @id @default(cuid())
+  versionId    String
+  version      RouteListVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  routeGroupId String
+  routeGroup   RouteGroup       @relation(fields: [routeGroupId], references: [id], onDelete: Cascade)
+  cidr         String // e.g. 149.154.160.0/20
+  resolvedAt   DateTime         @default(now())
+
+  @@index([versionId])
+  @@index([routeGroupId])
+  @@map("route_entries")
+}
+
+// ──────────────────────────── Health & ops ────────────────────────────
+
+model ServerHealthCheck {
+  id            String    @id @default(cuid())
+  serverId      String
+  server        VpnServer @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  checkedAt     DateTime  @default(now())
+  reachable     Boolean   @default(false)
+  wgPortOpen    Boolean   @default(false)
+  latencyMs     Int?
+  dnsOk         Boolean   @default(false)
+  targetResults Json? // { "youtube": true, "telegram": false, ... }
+  ok            Boolean   @default(false)
+  detail        String?
+
+  @@index([serverId, checkedAt])
+  @@map("server_health_checks")
+}
+
+// ──────────────────────────── Admin infra billing ────────────────────────────
+
+model ServerCostRecord {
+  id          String           @id @default(cuid())
+  serverId    String
+  server      VpnServer        @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  periodStart DateTime
+  periodEnd   DateTime
+  amountCents Int
+  currency    String           @default("USD")
+  status      ServerCostStatus @default(PENDING)
+  createdAt   DateTime         @default(now())
+
+  @@index([serverId])
+  @@map("server_cost_records")
+}
+
+// ──────────────────────────── Audit ────────────────────────────
+
+model AdminAction {
+  id         String   @id @default(cuid())
+  adminId    String
+  admin      User     @relation("AdminActor", fields: [adminId], references: [id])
+  action     String // e.g. subscription.grant
+  entityType String? // e.g. User, Tariff
+  entityId   String?
+  metadata   Json?
+  ip         String?
+  createdAt  DateTime @default(now())
+
+  @@index([adminId, createdAt])
+  @@map("admin_actions")
+}

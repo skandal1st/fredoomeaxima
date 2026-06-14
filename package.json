@@ -1,0 +1,21 @@
+{
+  "name": "aximavpn",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AximaVPN — SaaS WireGuard VPN with split tunneling, billing and admin panel",
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=9"
+  },
+  "scripts": {
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "dev:api": "pnpm --filter @aximavpn/api start:dev",
+    "dev:web": "pnpm --filter @aximavpn/web dev",
+    "dev:agent": "pnpm --filter @aximavpn/agent dev",
+    "db:migrate": "pnpm --filter @aximavpn/api prisma:migrate",
+    "db:seed": "pnpm --filter @aximavpn/api prisma:seed",
+    "db:generate": "pnpm --filter @aximavpn/api prisma:generate"
+  },
+  "packageManager": "pnpm@9.12.0"
+}
