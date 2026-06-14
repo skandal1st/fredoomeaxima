@@ -1,0 +1,21 @@
+# Never copy host build artifacts into the Docker build context.
+# Images install deps and build from source inside the build stage; host
+# node_modules (pnpm/npm symlinks) break `COPY` and bloat the context.
+**/node_modules
+**/dist
+**/.next
+**/.turbo
+
+# VCS / local
+.git
+.gitignore
+**/*.log
+**/.DS_Store
+
+# Env & secrets — never bake into images
+**/.env
+**/.env.*
+
+# Editor / OS cruft
+.vscode
+.idea
