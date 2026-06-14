@@ -44,6 +44,12 @@ services:
       - "traefik.http.services.web.loadbalancer.server.port=3000"
 
   traefik:
+    # Pin the Docker API version Traefik uses. New Docker daemons reject Traefik's
+    # default-negotiated 1.24 ("client version is too old"), which leaves Traefik
+    # with no routers → 404 everywhere and no ACME. Match this to your daemon's
+    # Server APIVersion (`docker version`); 1.40 is the guaranteed-safe minimum.
+    environment:
+      - DOCKER_API_VERSION=${DOCKER_API_VERSION:-1.44}
     command:
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
