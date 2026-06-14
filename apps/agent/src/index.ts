@@ -116,13 +116,16 @@ async function probeTarget(host: string): Promise<boolean> {
 }
 
 async function runTargetCheck(): Promise<{ results: Record<string, boolean>; dnsOk: boolean }> {
+  // Probe all targets in parallel: sequential probing summed each 5s timeout and
+  // could exceed the panel's request timeout when several services are blocked.
+  const entries = Object.entries(TARGET_PROBES);
+  const oks = await Promise.all(entries.map(([, host]) => probeTarget(host)));
   const results: Record<string, boolean> = {};
   let anyDns = false;
-  for (const [key, host] of Object.entries(TARGET_PROBES)) {
-    const ok = await probeTarget(host);
-    results[key] = ok;
-    if (ok) anyDns = true;
-  }
+  entries.forEach(([key], i) => {
+    results[key] = oks[i];
+    if (oks[i]) anyDns = true;
+  });
   return { results, dnsOk: anyDns };
 }
 

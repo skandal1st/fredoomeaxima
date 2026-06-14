@@ -83,7 +83,9 @@ export class AgentGatewayService {
 
   async targetCheck(server: AgentServerRef): Promise<AgentTargetCheck> {
     try {
-      const res = await this.client(server).get<AgentTargetCheck>('/target-check');
+      // target-check probes several external services on-box; give it more headroom
+      // than the default per-request timeout (it's inherently slower than peer ops).
+      const res = await this.client(server).get<AgentTargetCheck>('/target-check', { timeout: 25_000 });
       return res.data;
     } catch (err) {
       this.fail('targetCheck', err);

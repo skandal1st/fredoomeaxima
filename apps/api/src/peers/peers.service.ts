@@ -39,12 +39,15 @@ export class PeersService {
    * device limit, country allow-list and server capacity. Generates keys,
    * allocates an IP, pushes the peer to the agent, and stores it (keys encrypted).
    */
-  async create(userId: string, serverId: string, label?: string) {
+  async create(userId: string, serverId: string, label?: string, opts: { replacingPeerId?: string } = {}) {
     const subscription = await this.subscriptions.getActive(userId);
     if (!subscription) throw new ForbiddenException('No active subscription');
 
+    // When recreating, the peer being replaced is still ACTIVE until we succeed —
+    // exclude it from the limit/capacity counts so a replace never trips them.
+    const excludeOld = opts.replacingPeerId ? { id: { not: opts.replacingPeerId } } : {};
     const activePeers = await this.prisma.wireguardPeer.count({
-      where: { userId, status: PeerStatus.ACTIVE },
+      where: { userId, status: PeerStatus.ACTIVE, ...excludeOld },
     });
     if (activePeers >= subscription.tariff.deviceLimit) {
       throw new ForbiddenException(`Device limit reached (${subscription.tariff.deviceLimit})`);
@@ -60,12 +63,14 @@ export class PeersService {
       throw new ForbiddenException('Country not included in your tariff');
     }
 
-    // Capacity + IP allocation.
+    // Capacity + IP allocation. Keep the old peer in the IP set so the replacement
+    // gets a distinct address, but exclude it from the capacity count.
     const existingActive = await this.prisma.wireguardPeer.findMany({
       where: { serverId, status: PeerStatus.ACTIVE },
-      select: { assignedIp: true },
+      select: { id: true, assignedIp: true },
     });
-    if (existingActive.length >= server.maxPeers) throw new ForbiddenException('Server is at capacity');
+    const capacityUsed = existingActive.filter((p) => p.id !== opts.replacingPeerId).length;
+    if (capacityUsed >= server.maxPeers) throw new ForbiddenException('Server is at capacity');
 
     const subnet = this.config.get('WG_SUBNET_CIDR');
     const serverAddress = this.config.get('WG_SERVER_ADDRESS');
@@ -136,11 +141,16 @@ export class PeersService {
     return { revoked: true };
   }
 
-  /** Recreate: revoke the old peer and create a fresh one on the same server. */
+  /**
+   * Recreate: build a fresh peer on the same server, then revoke the old one.
+   * Order matters — if the agent/server is unavailable the new peer fails to
+   * create and the old config stays intact instead of being lost.
+   */
   async recreate(userId: string, peerId: string) {
     const peer = await this.loadOwned(userId, peerId);
+    const created = await this.create(userId, peer.serverId, peer.label ?? undefined, { replacingPeerId: peer.id });
     await this.revoke(userId, peerId);
-    return this.create(userId, peer.serverId, peer.label ?? undefined);
+    return created;
   }
 
   /** Admin: delete a user's peer entirely. */
