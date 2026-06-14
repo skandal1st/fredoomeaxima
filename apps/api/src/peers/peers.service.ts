@@ -74,7 +74,8 @@ export class PeersService {
 
     const subnet = this.config.get('WG_SUBNET_CIDR');
     const serverAddress = this.config.get('WG_SERVER_ADDRESS');
-    const assignedIp = nextFreeIp(subnet, serverAddress, existingActive.map((p) => p.assignedIp));
+    const usedIps = existingActive.map((p) => p.assignedIp).filter((ip): ip is string => ip !== null);
+    const assignedIp = nextFreeIp(subnet, serverAddress, usedIps);
 
     const keys = generateKeyPair();
     const presharedKey = generatePresharedKey();
@@ -137,7 +138,12 @@ export class PeersService {
         .removePeer({ agentUrl: server.agentUrl, agentTokenEnc: server.agentTokenEnc }, peer.publicKey)
         .catch(() => undefined); // tolerate agent being down; DB stays source of truth
     }
-    await this.prisma.wireguardPeer.update({ where: { id: peer.id }, data: { status: PeerStatus.REVOKED } });
+    // Release the IP (null) so the allocator can reuse it — the unique
+    // (serverId, assignedIp) constraint otherwise keeps it reserved forever.
+    await this.prisma.wireguardPeer.update({
+      where: { id: peer.id },
+      data: { status: PeerStatus.REVOKED, assignedIp: null },
+    });
     return { revoked: true };
   }
 

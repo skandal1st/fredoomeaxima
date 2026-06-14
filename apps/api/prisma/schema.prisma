@@ -219,7 +219,7 @@ model WireguardPeer {
   publicKey          String
   privateKeyEnc      String // AES-GCM ciphertext
   presharedKeyEnc    String // AES-GCM ciphertext
-  assignedIp         String // e.g. 10.66.66.5
+  assignedIp         String? // e.g. 10.66.66.5; released (null) when the peer is revoked so the IP can be reused
   status             PeerStatus @default(ACTIVE)
 
   // split-tunnel versioning
