@@ -1,6 +1,7 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { promises as dns } from 'dns';
 import { PrismaService } from '../common/prisma.service';
+import { sanitizeCidrs, aggregateCidrs } from '../common/cidr.util';
 import { UpsertRouteGroupInput } from '@aximavpn/shared';
 
 @Injectable()
@@ -53,13 +54,35 @@ export class RoutesService {
    */
   async resolveAndPublish(note?: string): Promise<{ version: number; entryCount: number; changed: boolean }> {
     const groups = await this.prisma.routeGroup.findMany({ where: { isEnabled: true } });
+    const current = await this.getCurrentVersion();
+
+    // Last-known-good CIDRs per group, to fall back on when resolution yields
+    // nothing (transient DNS failure must not wipe a working group).
+    const prevByGroup = new Map<string, string[]>();
+    for (const e of current?.entries ?? []) {
+      const list = prevByGroup.get(e.routeGroupId) ?? [];
+      list.push(e.cidr);
+      prevByGroup.set(e.routeGroupId, list);
+    }
 
     const resolved: { routeGroupId: string; cidr: string }[] = [];
     for (const group of groups) {
+      // Resolve each group in isolation so one bad group can't poison the rest.
+      const rawCidrs: string[] = [];
       for (const domain of group.domains) {
-        const cidrs = await this.resolveDomain(domain);
-        for (const cidr of cidrs) resolved.push({ routeGroupId: group.id, cidr });
+        rawCidrs.push(...(await this.resolveDomain(domain)));
       }
+      // Validate (drop bogons/over-broad/malformed) then compact this group's
+      // routes — this is what keeps AllowedIPs/QR small and the tunnel safe.
+      let groupCidrs = aggregateCidrs(sanitizeCidrs(rawCidrs));
+      if (groupCidrs.length === 0) {
+        const prev = prevByGroup.get(group.id);
+        if (prev && prev.length > 0) {
+          this.logger.warn(`Route group "${group.key}" resolved to 0 CIDRs; keeping previous ${prev.length}.`);
+          groupCidrs = prev;
+        }
+      }
+      for (const cidr of groupCidrs) resolved.push({ routeGroupId: group.id, cidr });
     }
 
     // Dedup per (group, cidr).
@@ -71,8 +94,14 @@ export class RoutesService {
       return true;
     });
 
+    // Anti-poison: never replace a non-empty published list with an empty one
+    // (e.g. total DNS outage). Keep serving the last good version.
+    if (unique.length === 0 && (current?.entries.length ?? 0) > 0) {
+      this.logger.warn(`Resolved 0 route entries; keeping current v${current!.version} (anti-poison).`);
+      return { version: current!.version, entryCount: current!.entries.length, changed: false };
+    }
+
     // Skip publishing if nothing changed vs the latest version (avoid version churn).
-    const current = await this.getCurrentVersion();
     const currentSet = new Set((current?.entries ?? []).map((e) => `${e.routeGroupId}|${e.cidr}`));
     const newSet = new Set(unique.map((r) => `${r.routeGroupId}|${r.cidr}`));
     const changed = currentSet.size !== newSet.size || [...newSet].some((k) => !currentSet.has(k));
