@@ -1,5 +1,11 @@
 # Multi-stage build for the NestJS API in a pnpm monorepo.
 FROM node:20-bookworm-slim AS base
+# Prisma's engines need OpenSSL (the slim image ships without libssl) — install it
+# in the shared base so both `prisma generate` (build) and migrate/runtime detect
+# the correct engine (debian-openssl-3.0.x) instead of failing.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends openssl ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
 RUN corepack enable
 WORKDIR /repo
 
