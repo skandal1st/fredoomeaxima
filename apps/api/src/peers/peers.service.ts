@@ -148,7 +148,12 @@ export class PeersService {
 
   async getQrDataUrl(userId: string, peerId: string): Promise<string> {
     const conf = await this.getConfig(userId, peerId);
-    return QRCode.toDataURL(conf, { errorCorrectionLevel: 'M', margin: 1, width: 400 });
+    // margin 4 = the QR spec's mandatory quiet zone (a smaller margin makes
+    // scanners misread the finder patterns → corrupted config → "unknown
+    // section"). ECC 'L' yields the smallest symbol for the payload, so modules
+    // stay large and scannable; a config on a clean screen doesn't need heavy
+    // error correction. width 512 gives more pixels per module.
+    return QRCode.toDataURL(conf, { errorCorrectionLevel: 'L', margin: 4, width: 512 });
   }
 
   /** Revoke a peer: remove from the agent and mark revoked (kept for audit/history). */
