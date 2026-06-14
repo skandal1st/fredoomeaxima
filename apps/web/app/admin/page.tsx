@@ -29,6 +29,14 @@ interface ProvState {
   provisionStatus: string;
   provisionLog?: string;
 }
+interface AgentDiag {
+  agentUrl: string;
+  agentReachable: boolean;
+  status: { wgUp: boolean; peerCount: number; uptimeSeconds: number } | null;
+  statusError?: string;
+  targets: { results: Record<string, boolean>; dnsOk: boolean } | null;
+  targetsError?: string;
+}
 
 const EMPTY = {
   name: '',
@@ -56,6 +64,11 @@ export default function AdminServersPage() {
   const [logServer, setLogServer] = useState<{ id: string; name: string } | null>(null);
   const [prov, setProv] = useState<ProvState | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const [busy, setBusy] = useState<string | null>(null); // serverId of in-flight restart
+  const [diagServer, setDiagServer] = useState<{ id: string; name: string } | null>(null);
+  const [diag, setDiag] = useState<AgentDiag | null>(null);
+  const [diagError, setDiagError] = useState('');
 
   const load = async () => {
     const [s, c] = await Promise.all([api<Server[]>('/admin/servers'), api<Country[]>('/countries')]);
@@ -141,6 +154,30 @@ export default function AdminServersPage() {
   const runHealth = async (id: string) => {
     await api(`/admin/servers/${id}/health/run`, { method: 'POST' });
     await load();
+  };
+
+  const restartWg = async (s: Server) => {
+    if (!confirm(`Перезапустить WireGuard на сервере «${s.name}»? Активные подключения кратковременно прервутся.`)) return;
+    setBusy(s.id);
+    try {
+      await api(`/admin/servers/${s.id}/restart`, { method: 'POST' });
+      alert('Команда на перезапуск отправлена. Через минуту проверьте статус («Диагностика»).');
+    } catch (err) {
+      alert(`Не удалось перезапустить: ${(err as Error).message}`);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const openDiag = async (s: Server) => {
+    setDiagServer({ id: s.id, name: s.name });
+    setDiag(null);
+    setDiagError('');
+    try {
+      setDiag(await api<AgentDiag>(`/admin/servers/${s.id}/agent-status`));
+    } catch (err) {
+      setDiagError((err as Error).message);
+    }
   };
 
   const remove = async (id: string) => {
@@ -286,6 +323,16 @@ export default function AdminServersPage() {
                 <button className="text-xs text-dim hover:text-strong" onClick={() => runHealth(s.id)}>
                   Проверить
                 </button>
+                <button className="text-xs text-dim hover:text-strong" onClick={() => openDiag(s)}>
+                  Диагностика
+                </button>
+                <button
+                  className="text-xs text-accent hover:underline disabled:opacity-50"
+                  disabled={busy === s.id}
+                  onClick={() => restartWg(s)}
+                >
+                  {busy === s.id ? 'Перезапуск…' : 'Перезапустить'}
+                </button>
                 <button className="text-xs hover:underline" style={{ color: '#ff8a8a' }} onClick={() => remove(s.id)}>
                   Удалить
                 </button>
@@ -315,6 +362,72 @@ export default function AdminServersPage() {
             </pre>
             {prov?.provisionStatus === 'SUCCESS' && (
               <p className="mt-2 text-sm text-accent">Готово — статус сервера: {prov.status}.</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {diagServer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={() => setDiagServer(null)}>
+          <div className="card flex max-h-[80vh] w-full max-w-lg flex-col overflow-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="font-display font-semibold text-strong">Диагностика · {diagServer.name}</h3>
+              <button className="btn-ghost" onClick={() => setDiagServer(null)}>
+                Закрыть
+              </button>
+            </div>
+
+            {!diag && !diagError && <Spinner />}
+            {diagError && <ErrorText>{diagError}</ErrorText>}
+
+            {diag && (
+              <div className="space-y-4 text-sm">
+                <p className="text-faint">
+                  Агент: <span className="mono text-dim">{diag.agentUrl}</span>
+                </p>
+
+                <div>
+                  <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-faint">WireGuard</p>
+                  {diag.status ? (
+                    <ul className="space-y-1 text-dim">
+                      <li>Интерфейс: {diag.status.wgUp ? <span className="text-accent">поднят</span> : <span style={{ color: '#ff8a8a' }}>не поднят</span>}</li>
+                      <li>Подключений (пиров): <span className="mono">{diag.status.peerCount}</span></li>
+                      <li>Аптайм агента: <span className="mono">{Math.floor(diag.status.uptimeSeconds / 60)} мин</span></li>
+                    </ul>
+                  ) : (
+                    <p style={{ color: '#ff8a8a' }}>Агент недоступен{diag.statusError ? `: ${diag.statusError}` : ''}</p>
+                  )}
+                </div>
+
+                <div>
+                  <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-faint">Доступность сервисов</p>
+                  {diag.targets ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {Object.entries(diag.targets.results).map(([name, ok]) => (
+                        <span
+                          key={name}
+                          className="rounded px-2 py-0.5 text-xs"
+                          style={{
+                            background: ok ? 'rgba(94,240,192,0.08)' : 'rgba(255,138,138,0.1)',
+                            color: ok ? 'var(--accent)' : '#ff8a8a',
+                          }}
+                        >
+                          {ok ? '✓' : '✕'} {name}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p style={{ color: '#ff8a8a' }}>Проверка недоступна{diag.targetsError ? `: ${diag.targetsError}` : ''}</p>
+                  )}
+                </div>
+
+                {!diag.agentReachable && (
+                  <p className="text-xs text-faint">
+                    Агент не отвечает по {diag.agentUrl}. Проверьте, что сервис агента и WireGuard запущены на сервере
+                    (см. подсказки ниже), затем нажмите «Перезапустить».
+                  </p>
+                )}
+              </div>
             )}
           </div>
         </div>

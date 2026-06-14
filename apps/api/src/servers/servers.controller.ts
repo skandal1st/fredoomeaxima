@@ -30,6 +30,8 @@ import {
   CreateServerInput,
   provisionServerSchema,
   ProvisionServerInput,
+  createCountrySchema,
+  CreateCountryInput,
 } from '@aximavpn/shared';
 
 @ApiTags('servers')
@@ -97,6 +99,50 @@ export class ServersController {
     const auth = req.headers.authorization ?? '';
     const agentToken = auth.startsWith('Bearer ') ? auth.slice(7) : '';
     return this.servers.heartbeat({ serverId: id, agentToken, peerCount: body.peerCount, wgUp: body.wgUp });
+  }
+
+  // ── Admin: countries catalogue ──
+
+  @ApiBearerAuth()
+  @Roles(UserRole.ADMIN)
+  @Get('admin/countries')
+  @ApiOperation({ summary: 'All countries with server/tariff usage counts (admin)' })
+  listCountries() {
+    return this.servers.listCountries();
+  }
+
+  @ApiBearerAuth()
+  @Roles(UserRole.ADMIN)
+  @Post('admin/countries')
+  @ApiOperation({ summary: 'Add a country' })
+  async createCountry(@CurrentUser() admin: AuthUser, @Body(new ZodBody(createCountrySchema)) dto: CreateCountryInput) {
+    const country = await this.servers.createCountry(dto);
+    await this.audit.record({ adminId: admin.id, action: 'country.create', entityType: 'VpnCountry', entityId: country.id });
+    return country;
+  }
+
+  @ApiBearerAuth()
+  @Roles(UserRole.ADMIN)
+  @Patch('admin/countries/:id')
+  @ApiOperation({ summary: 'Update a country' })
+  async updateCountry(
+    @CurrentUser() admin: AuthUser,
+    @Param('id') id: string,
+    @Body(new ZodBody(createCountrySchema.partial())) dto: Partial<CreateCountryInput>,
+  ) {
+    const country = await this.servers.updateCountry(id, dto);
+    await this.audit.record({ adminId: admin.id, action: 'country.update', entityType: 'VpnCountry', entityId: id });
+    return country;
+  }
+
+  @ApiBearerAuth()
+  @Roles(UserRole.ADMIN)
+  @Delete('admin/countries/:id')
+  @ApiOperation({ summary: 'Delete a country (blocked if servers/tariffs are attached)' })
+  async removeCountry(@CurrentUser() admin: AuthUser, @Param('id') id: string) {
+    const res = await this.servers.removeCountry(id);
+    await this.audit.record({ adminId: admin.id, action: 'country.delete', entityType: 'VpnCountry', entityId: id });
+    return res;
   }
 
   // ── Admin CRUD ──
@@ -201,5 +247,24 @@ export class ServersController {
     const res = await this.servers.remove(id);
     await this.audit.record({ adminId: admin.id, action: 'server.delete', entityType: 'VpnServer', entityId: id });
     return res;
+  }
+
+  @ApiBearerAuth()
+  @Roles(UserRole.ADMIN)
+  @Post('admin/servers/:id/restart')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Restart the WireGuard service on the server (via agent)' })
+  async restart(@CurrentUser() admin: AuthUser, @Param('id') id: string) {
+    const res = await this.servers.restartWg(id);
+    await this.audit.record({ adminId: admin.id, action: 'server.restart', entityType: 'VpnServer', entityId: id });
+    return res;
+  }
+
+  @ApiBearerAuth()
+  @Roles(UserRole.ADMIN)
+  @Get('admin/servers/:id/agent-status')
+  @ApiOperation({ summary: 'Live WireGuard + target-service diagnostics from the on-box agent' })
+  agentStatus(@Param('id') id: string) {
+    return this.servers.agentDiagnostics(id);
   }
 }

@@ -4,6 +4,7 @@ import { Shell } from '../../components/shell';
 
 const NAV = [
   { href: '/admin', label: 'Серверы' },
+  { href: '/admin/countries', label: 'Страны' },
   { href: '/admin/users', label: 'Пользователи' },
   { href: '/admin/tariffs', label: 'Тарифы' },
   { href: '/admin/payments', label: 'Платежи' },

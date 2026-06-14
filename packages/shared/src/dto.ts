@@ -40,6 +40,13 @@ export const grantSubscriptionSchema = z.object({
 });
 export type GrantSubscriptionInput = z.infer<typeof grantSubscriptionSchema>;
 
+export const createCountrySchema = z.object({
+  code: z.string().trim().length(2).toUpperCase(), // ISO 3166-1 alpha-2
+  name: z.string().min(1).max(80),
+  flagEmoji: z.string().max(8).optional(),
+});
+export type CreateCountryInput = z.infer<typeof createCountrySchema>;
+
 export const createServerSchema = z.object({
   name: z.string().min(1).max(80),
   countryId: z.string(),

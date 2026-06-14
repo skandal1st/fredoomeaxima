@@ -1,10 +1,12 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../common/prisma.service';
 import { CryptoService } from '../common/crypto.service';
 import { TypedConfigService } from '../config/config.module';
+import { AgentGatewayService } from '../agent-gateway/agent-gateway.service';
 import { buildInstallScript } from './install-script';
-import { CreateServerInput } from '@aximavpn/shared';
+import { CreateServerInput, CreateCountryInput } from '@aximavpn/shared';
 import { ServerStatus } from '@aximavpn/shared';
 
 @Injectable()
@@ -13,6 +15,7 @@ export class ServersService {
     private readonly prisma: PrismaService,
     private readonly crypto: CryptoService,
     private readonly config: TypedConfigService,
+    private readonly agent: AgentGatewayService,
   ) {}
 
   list() {
@@ -196,6 +199,101 @@ export class ServersService {
   async remove(id: string) {
     await this.getRaw(id);
     await this.prisma.vpnServer.delete({ where: { id } });
+    return { deleted: true };
+  }
+
+  // ── VPN service control (via on-box agent) ──
+
+  /** Restart the WireGuard service on the server (systemctl restart wg-quick@wg0). */
+  async restartWg(id: string) {
+    const server = await this.getRaw(id);
+    await this.agent.restart({ agentUrl: server.agentUrl, agentTokenEnc: server.agentTokenEnc });
+    return { restarted: true };
+  }
+
+  /**
+   * Live diagnostics for the admin: queries the on-box agent for WireGuard status
+   * and reachability of target services. Each probe is isolated so one failing
+   * doesn't blank the whole report — surfaces *why* WireGuard looks unavailable.
+   */
+  async agentDiagnostics(id: string) {
+    const server = await this.getRaw(id);
+    const ref = { agentUrl: server.agentUrl, agentTokenEnc: server.agentTokenEnc };
+
+    let status: Awaited<ReturnType<AgentGatewayService['getStatus']>> | null = null;
+    let statusError: string | undefined;
+    try {
+      status = await this.agent.getStatus(ref);
+    } catch (err) {
+      statusError = (err as Error).message;
+    }
+
+    let targets: Awaited<ReturnType<AgentGatewayService['targetCheck']>> | null = null;
+    let targetsError: string | undefined;
+    try {
+      targets = await this.agent.targetCheck(ref);
+    } catch (err) {
+      targetsError = (err as Error).message;
+    }
+
+    return {
+      agentUrl: server.agentUrl,
+      agentReachable: status !== null || targets !== null,
+      status,
+      statusError,
+      targets,
+      targetsError,
+    };
+  }
+
+  // ── Countries (admin catalogue management) ──
+
+  listCountries() {
+    return this.prisma.vpnCountry.findMany({
+      orderBy: { name: 'asc' },
+      include: { _count: { select: { servers: true, tariffs: true } } },
+    });
+  }
+
+  async createCountry(input: CreateCountryInput) {
+    try {
+      return await this.prisma.vpnCountry.create({
+        data: { code: input.code, name: input.name, flagEmoji: input.flagEmoji },
+      });
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+        throw new BadRequestException('Страна с таким кодом уже существует');
+      }
+      throw err;
+    }
+  }
+
+  async updateCountry(id: string, input: Partial<CreateCountryInput>) {
+    const existing = await this.prisma.vpnCountry.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Country not found');
+    try {
+      return await this.prisma.vpnCountry.update({
+        where: { id },
+        data: { code: input.code, name: input.name, flagEmoji: input.flagEmoji },
+      });
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+        throw new BadRequestException('Страна с таким кодом уже существует');
+      }
+      throw err;
+    }
+  }
+
+  async removeCountry(id: string) {
+    const country = await this.prisma.vpnCountry.findUnique({
+      where: { id },
+      include: { _count: { select: { servers: true, tariffs: true } } },
+    });
+    if (!country) throw new NotFoundException('Country not found');
+    if (country._count.servers > 0 || country._count.tariffs > 0) {
+      throw new BadRequestException('Нельзя удалить страну: к ней привязаны серверы или тарифы');
+    }
+    await this.prisma.vpnCountry.delete({ where: { id } });
     return { deleted: true };
   }
 }
