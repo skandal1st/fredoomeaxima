@@ -12,7 +12,6 @@ import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { RoutesService } from '../routes/routes.service';
 import { AgentGatewayService } from '../agent-gateway/agent-gateway.service';
 import { generateKeyPair, generatePresharedKey, renderClientConfig, buildConfigName } from '../common/wireguard.util';
-import { excludeIpFromCidrs } from '../common/cidr.util';
 import { nextFreeIp } from '../common/ip-alloc.util';
 import { PeerStatus, ServerStatus } from '@aximavpn/shared';
 
@@ -82,11 +81,8 @@ export class PeersService {
 
     const keys = generateKeyPair();
     const presharedKey = generatePresharedKey();
-    const { versionId, cidrs } = await this.routes.getCurrentAllowedIps();
-    // Mirror getConfig: compact and drop the Endpoint IP so the snapshot matches
-    // what the client will actually receive.
-    const safeCidrs = excludeIpFromCidrs(cidrs, server.ip);
-    const allowedIpsSnapshot = safeCidrs.length > 0 ? safeCidrs.join(',') : '0.0.0.0/0';
+    // Full tunnel for every peer (see getConfig). No route-list dependency.
+    const allowedIpsSnapshot = '0.0.0.0/0';
 
     // Push to the agent first; if it fails, no DB row is created (consistency).
     await this.agent.addPeer(
@@ -104,7 +100,7 @@ export class PeersService {
         presharedKeyEnc: this.crypto.encrypt(presharedKey),
         assignedIp,
         status: PeerStatus.ACTIVE,
-        routeListVersionId: versionId,
+        routeListVersionId: null,
         needsUpdate: false,
       },
     });
@@ -118,11 +114,11 @@ export class PeersService {
     const server = await this.prisma.vpnServer.findUnique({ where: { id: peer.serverId } });
     if (!server?.serverPublicKey) throw new BadRequestException('Server public key missing');
 
-    const { cidrs } = await this.routes.getCurrentAllowedIps();
-    // Carve the server Endpoint out of AllowedIPs: routing it into the tunnel
-    // creates a handshake loop that makes the whole server unreachable. Also
-    // compacts the list (smaller .conf / scannable QR).
-    const allowedIps = excludeIpFromCidrs(cidrs, server.ip);
+    // Full tunnel: route everything through the VPN. Domain-resolved split-tunnel
+    // lists were unreliable (CDN/QUIC/rotating ranges), so all traffic now goes
+    // over the tunnel. wg-quick / the official clients route the Endpoint itself
+    // outside the tunnel via fwmark policy-routing, so no Endpoint carve-out is
+    // needed here. Whitelisted bypass services can be added later.
     return renderClientConfig({
       clientPrivateKey: this.crypto.decrypt(peer.privateKeyEnc),
       clientAddress: `${peer.assignedIp}/32`,
@@ -130,7 +126,7 @@ export class PeersService {
       serverPublicKey: server.serverPublicKey,
       presharedKey: this.crypto.decrypt(peer.presharedKeyEnc),
       endpoint: `${server.ip}:${server.wgEndpointPort}`,
-      allowedIps,
+      allowedIps: ['0.0.0.0/0'],
     });
   }
 
